@@ -5,7 +5,7 @@ const Sidebar: React.FC = () => {
     <aside style={{ width: '250px', backgroundColor: '#ecf0f1', padding: '20px', borderRight: '1px solid #bdc3c7' }}>
       <h3>Filtros de Búsqueda</h3>
       <ul style={{ listStyleType: 'none', padding: 0 }}>
-        <li style={{ marginBottom: '10px' }}><label><input type type="checkbox" /> Restaurantes</label></li>
+        <li style={{ marginBottom: '10px' }}><label><input type="checkbox" /> Restaurantes</label></li>
         <li style={{ marginBottom: '10px' }}><label><input type="checkbox" /> Hoteles</label></li>
         <li style={{ marginBottom: '10px' }}><label><input type="checkbox" /> Panaderías</label></li>
       </ul>
