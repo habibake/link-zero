@@ -1,15 +1,19 @@
 import React from 'react';
+import './Header.css'; // Importamos el estilo aparte
 
 const Header: React.FC = () => {
   return (
-    <header style={{ backgroundColor: '#2c3e50', color: 'white', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <h1 style={{ margin: 0, fontSize: '24px' }}>Link-Zero</h1>
-      <nav>
-        <button style={{ background: 'none', border: 'none', color: 'white', marginRight: '15px', cursor: 'pointer' }}>Mi Perfil</button>
-        <button style={{ backgroundColor: '#e74c3c', border: 'none', color: 'white', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' }}>Cerrar Sesión</button>
-      </nav>
+    <header className="header-container">
+      <div className="header-location">
+        <span className="location-city">Cancún &gt;</span>
+        <h1 className="location-title">Cerca tuyo</h1>
+      </div>
+      <div className="header-actions">
+        <button className="icon-btn" aria-label="Notificaciones">🔔</button>
+        <button className="icon-btn" aria-label="Perfil">👤</button>
+      </div>
     </header>
   );
-}
+};
 
 export default Header;

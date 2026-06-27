@@ -5,35 +5,63 @@ import Main from './components/Main';
 import { LoteAlimento } from './models/LoteAlimento';
 
 const App: React.FC = () => {
-  // Manejo del estado: Un arreglo que contendrá objetos reales de nuestra clase
+  // Estado para almacenar TODOS los lotes que vienen del servidor
   const [lotesDisponibles, setLotesDisponibles] = useState<LoteAlimento[]>([]);
+  // Estado para manejar el filtro activo
+  const [filtroActivo, setFiltroActivo] = useState<string>('Todos');
 
+  // Ejecutamos la petición HTTP (Fetch) al cargar la aplicación
   useEffect(() => {
-    // Simularemos la Fetch API para traer el inventario en riesgo de desecho
     const fetchCatalogo = async () => {
-      // En el futuro, aquí haremos un fetch real al Backend de Node.js
-      // Por ahora, instanciamos objetos reales usando nuestra clase POO
-      const lote1 = new LoteAlimento('1', 'est-101', 'Paquete de panadería surtido', 5, 120, 50);
-      const lote2 = new LoteAlimento('2', 'est-102', 'Desayuno buffet (Hotel)', 3, 300, 120);
-      const lote3 = new LoteAlimento('3', 'est-103', 'Comida del día (Cafetería)', 2, 150, 60);
-
-      setLotesDisponibles([lote1, lote2, lote3]);
+      try {
+        // Conexión real a tu Back-End en Node.js/Express
+        const respuesta = await fetch('http://localhost:3000/api/lotes');
+        
+        if (respuesta.ok) {
+          const datosBD = await respuesta.json();
+          
+          // Instanciamos los objetos reales aplicando la POO
+          const lotesReales = datosBD.map((item: any) => 
+            new LoteAlimento(
+              item.id, 
+              item.establecimientoId || 'est-generico', 
+              item.descripcion, 
+              item.cantidadStock || item.cantidadDisponible || 1, // Adaptación entre Back y Front
+              item.precioOriginal || (item.precioDescuento * 2), // Simulamos precio original si no viene
+              item.precioDescuento
+            )
+          );
+          setLotesDisponibles(lotesReales);
+        } else {
+          console.warn('El servidor respondió, pero sin datos válidos.');
+        }
+      } catch (error) {
+        console.error('Error al conectar con el servidor:', error);
+        alert('Asegúrate de que tu Back-End esté corriendo en el puerto 3000.');
+      }
     };
 
     fetchCatalogo();
-  }, []);
+  }, []); // El arreglo vacío indica que solo se ejecuta una vez al inicio
+
+  // Función para cambiar el filtro (se la pasaremos al Sidebar)
+  const cambiarFiltro = (nuevoFiltro: string) => {
+    setFiltroActivo(nuevoFiltro);
+  };
+
+  // Filtramos la lista en tiempo real según lo seleccionado en el Sidebar
+  const lotesFiltrados = lotesDisponibles.filter(lote => {
+    if (filtroActivo === 'Todos') return true;
+    // Filtro simple basado en palabras clave de la descripción
+    return lote.descripcion.toLowerCase().includes(filtroActivo.toLowerCase());
+  });
 
   return (
-    // Estructura layout principal (Flexbox para distribuir los espacios)
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'Arial, sans-serif' }}>
-      <Header />
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar />
-        {/* Pasamos los objetos a través de Props (Requisito de la rúbrica) */}
-        <Main lotes={lotesDisponibles} />
-      </div>
-    </div>
-  );
+  <div className="app-container">
+    <Header />
+    <Main lotes={lotesFiltrados} />
+    <Sidebar onFilterChange={cambiarFiltro} filtroActual={filtroActivo} />
+  </div>
+);
 };
-
 export default App;

@@ -1,19 +1,32 @@
 import React from 'react';
+import './Sidebar.css';
 
-const Sidebar: React.FC = () => {
-  return (
-    <aside style={{ width: '250px', backgroundColor: '#ecf0f1', padding: '20px', borderRight: '1px solid #bdc3c7' }}>
-      <h3>Filtros de Búsqueda</h3>
-      <ul style={{ listStyleType: 'none', padding: 0 }}>
-        <li style={{ marginBottom: '10px' }}><label><input type="checkbox" /> Restaurantes</label></li>
-        <li style={{ marginBottom: '10px' }}><label><input type="checkbox" /> Hoteles</label></li>
-        <li style={{ marginBottom: '10px' }}><label><input type="checkbox" /> Panaderías</label></li>
-      </ul>
-      <button style={{ width: '100%', padding: '10px', backgroundColor: '#3498db', color: 'white', border: 'none', borderRadius: '5px' }}>
-        Buscar cerca de mí
-      </button>
-    </aside>
-  );
+interface SidebarProps {
+  onFilterChange: (filtro: string) => void;
+  filtroActual: string;
 }
+
+const Sidebar: React.FC<SidebarProps> = ({ onFilterChange, filtroActual }) => {
+  const opciones = [
+    { nombre: 'Todos', icono: '🏠' },
+    { nombre: 'Panadería', icono: '🥐' },
+    { nombre: 'Pastelería', icono: '🍰' },
+  ];
+
+  return (
+    <nav className="sidebar-container">
+      {opciones.map((opcion) => (
+        <button
+          key={opcion.nombre}
+          onClick={() => onFilterChange(opcion.nombre)}
+          className={`sidebar-btn ${filtroActual === opcion.nombre ? 'active' : ''}`}
+        >
+          <span className="sidebar-icon">{opcion.icono}</span>
+          <span className="sidebar-text">{opcion.nombre}</span>
+        </button>
+      ))}
+    </nav>
+  );
+};
 
 export default Sidebar;
