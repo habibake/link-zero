@@ -9,7 +9,8 @@ interface MainDescubrimientosProps {
 
 export default function MainDescubrimientos({ lotes, onReservar, onVerDetalle }: MainDescubrimientosProps) {
   return (
-    <section className="px-10 mt-32 mb-32 max-w-7xl mx-auto">
+    // ¡Aquí está la magia! Le agregamos id="restaurantes"
+    <section id="restaurantes" className="px-10 mt-32 mb-32 max-w-7xl mx-auto">
       <p className="text-xs font-bold tracking-widest text-emerald-500 uppercase mb-2">Rescates del día</p>
       <h2 className="text-4xl font-extrabold text-[#1A103C] mb-8">
         Descubrimientos <br /> del <span className="text-emerald-400">día.</span>
