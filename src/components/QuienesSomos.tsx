@@ -9,7 +9,7 @@ export default function QuienesSomos() {
             Nuestra <span className="text-emerald-400">misión.</span>
           </h2>
           <p className="text-lg text-gray-300 leading-relaxed">
-            Link-Zero nace de la visión de estudiantes de Desarrollo de Software Multiplataforma. Habib, Jonathan y todo el equipo detrás de este proyecto nos dimos cuenta de algo crítico: la comida perfecta no debe terminar en la basura.
+            Link-Zero nace de la visión de estudiantes de Desarrollo de Software Multiplataforma; todo el equipo detrás de este proyecto nos dimos cuenta de algo crítico: la comida perfecta no debe terminar en la basura.
           </p>
           <p className="text-lg text-gray-300 leading-relaxed">
             Por eso, creamos esta plataforma exclusiva para conectar los excedentes de deliciosos platillos de restaurantes y PyMEs locales directamente contigo. Menos desperdicio, mejores precios, y un impacto real en nuestra comunidad.
