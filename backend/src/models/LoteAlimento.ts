@@ -32,6 +32,7 @@ export class LoteAlimento {
         this.categoria = categoria;
     }
 
+    // Método para calcular el porcentaje de ahorro real
     calcularPorcentajeAhorro(): number {
         return Math.round(((this.precioOriginal - this.precioDescuento) / this.precioOriginal) * 100);
     }
