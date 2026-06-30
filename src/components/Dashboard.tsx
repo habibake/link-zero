@@ -19,7 +19,7 @@ class LoteComida {
   }
 }
 
-const API_URL = "http://localhost:3001/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 interface DashboardProps { nombreEmpresa: string; razonSocialEmpresa: string; }
 
 export default function Dashboard({ razonSocialEmpresa }: DashboardProps) {

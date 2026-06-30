@@ -8,7 +8,7 @@ import { LoteAlimento } from './models/LoteAlimento';
 import type { CategoriaLote } from './models/LoteAlimento';
 import { Usuario } from './models/Usuario';
 
-const API_URL = "http://localhost:3001/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 
 interface LoteCrudo {
   id_lote: number;
