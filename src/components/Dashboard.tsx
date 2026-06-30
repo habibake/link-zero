@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // CLASE ENTIDAD
 class LoteComida {
@@ -19,6 +19,7 @@ class LoteComida {
   }
 }
 
+const API_URL = "http://localhost:3001/api";
 interface DashboardProps { nombreEmpresa: string; }
 
 export default function Dashboard({ nombreEmpresa }: DashboardProps) {
@@ -28,14 +29,36 @@ export default function Dashboard({ nombreEmpresa }: DashboardProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [alertaModal, setAlertaModal] = useState({ visible: false, mensaje: '', tipo: '' });
 
-  // BASE DE DATOS SIMULADA
-  const [productos, setProductos] = useState<LoteComida[]>([
-    new LoteComida(1, 'Pan de Masa Madre', 'Panadería', 24, 'pzas', 100, 20, '2026-07-02', '2026-06-29', 'Disponible', '🍞'),
-    new LoteComida(2, 'Yogurt Griego', 'Lácteos', 48, 'unidades', 50, 15, '2026-07-05', '2026-06-29', 'Disponible', '🥛'),
-    new LoteComida(3, 'Ensalada Mixta', 'Verduras', 12, 'bolsas', 80, 25, '2026-06-30', '2026-06-29', 'Vendido', '🥗'),
-    new LoteComida(4, 'Tomates Cherry', 'Verduras', 8, 'cajas', 60, 20, '2026-07-01', '2026-06-29', 'Disponible', '🍅'),
-    new LoteComida(5, 'Pizza Pepperoni', 'Preparada', 5, 'pzas', 300, 50, '2026-06-29', '2026-06-29', 'Disponible', '🍕')
-  ]);
+  const [productos, setProductos] = useState<LoteComida[]>([]);
+
+  useEffect(() => {
+    cargarProductos();
+  }, []);
+
+  async function cargarProductos() {
+    try {
+      const respuesta = await fetch(`${API_URL}/lotes`);
+      const datos = await respuesta.json();
+      const nuevos = datos.map((p: any) =>
+        new LoteComida(
+          p.id_lote,
+          p.descripcion,
+          p.categoria,
+          p.cantidad_en_stock,
+          "pzas",
+          p.precio_original,
+          p.precio_descuento,
+          p.fecha_expiracion,
+          p.fecha_disponible,
+          p.estado || "Disponible",
+          "🍞"
+        )
+      );
+      setProductos(nuevos);
+    } catch (error) {
+      console.log(error);
+    }
+  }
 
   const [formLote, setFormLote] = useState({ descripcion: '', categoria: 'Panadería', cantidad: '', unidad: 'pzas', precioOriginal: '', precioDescuento: '', fechaExpiracion: '' });
 
@@ -43,9 +66,8 @@ export default function Dashboard({ nombreEmpresa }: DashboardProps) {
   const [direccion, setDireccion] = useState('Zona Hotelera, Cancún');
   const [horario, setHorario] = useState('08:00 AM - 10:00 PM');
 
-  // 👉 MATEMÁTICAS EN TIEMPO REAL
-  const totalLotes = productos.filter(p => p.estado === 'Disponible').length; 
-  const metaLotes = 20; 
+  const totalLotes = productos.filter(p => p.estado === 'Disponible').length;
+  const metaLotes = 20;
   const progresoLotes = Math.min((totalLotes / metaLotes) * 100, 100);
 
   const ingresosProyectados = productos.reduce((acc, curr) => curr.estado === 'Disponible' ? acc + (curr.precio_descuento * curr.cantidad_en_stock) : acc, 0);
@@ -54,52 +76,80 @@ export default function Dashboard({ nombreEmpresa }: DashboardProps) {
   const kgRescatados = productos.reduce((acc, curr) => acc + (curr.cantidad_en_stock * 1.5), 0);
   const progresoKg = Math.min((kgRescatados / 500) * 100, 100);
 
-  // 👉 CORRECCIÓN 1: LÓGICA DE FILTRADO ARREGLADA (Plural a Singular)
   const productosFiltrados = productos.filter(p => {
     let cumpleFiltroBoton = true;
     if (filtroTabla === 'Disponibles') cumpleFiltroBoton = p.estado === 'Disponible';
     if (filtroTabla === 'Vendidos') cumpleFiltroBoton = p.estado === 'Vendido';
-    // Si es 'Todos', se queda en true
 
     const cumpleBusqueda = p.descripcion.toLowerCase().includes(busqueda.toLowerCase()) || p.categoria.toLowerCase().includes(busqueda.toLowerCase());
     return cumpleFiltroBoton && cumpleBusqueda;
   });
 
-  // 👉 CORRECCIÓN 2: VALIDACIÓN DE NÚMEROS NEGATIVOS AL GUARDAR
-  const handleAddItem = () => {
-    const { descripcion, categoria, cantidad, unidad, precioOriginal, precioDescuento, fechaExpiracion } = formLote;
-    
-    // Validamos que no metan números raros antes de guardar
+  // ✅ AHORA GUARDA EN MYSQL (POST)
+  const handleAddItem = async () => {
+    const { descripcion, categoria, cantidad, precioOriginal, precioDescuento, fechaExpiracion } = formLote;
+
     if (Number(cantidad) <= 0 || Number(precioOriginal) < 0 || Number(precioDescuento) < 0) {
       setAlertaModal({ visible: true, mensaje: 'El stock y los precios deben ser números válidos y mayores a cero.', tipo: 'error' });
       return;
     }
 
-    if (descripcion && cantidad && precioOriginal && precioDescuento && fechaExpiracion) {
-      const iconos: Record<string, string> = { 'Panadería': '🥐', 'Lácteos': '🧀', 'Verduras': '🥦', 'Preparada': '🍱' };
-      const nuevoLote = new LoteComida(Date.now(), descripcion, categoria, Number(cantidad), unidad, Number(precioOriginal), Number(precioDescuento), fechaExpiracion, new Date().toISOString().split('T')[0], 'Disponible', iconos[categoria] || '📦');
-      
-      setProductos([nuevoLote, ...productos]);
+    if (!descripcion || !cantidad || !precioOriginal || !precioDescuento || !fechaExpiracion) {
+      setAlertaModal({ visible: true, mensaje: 'Por favor, llena todos los campos.', tipo: 'error' });
+      return;
+    }
+
+    try {
+      const respuesta = await fetch(`${API_URL}/lotes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          razon_social_empresa: razonSocial,
+          descripcion,
+          categoria,
+          cantidad_en_stock: Number(cantidad),
+          precio_original: Number(precioOriginal),
+          precio_descuento: Number(precioDescuento),
+          fecha_expiracion: fechaExpiracion,
+          fecha_disponible: new Date().toISOString().split("T")[0]
+        })
+      });
+
+      if (!respuesta.ok) {
+        setAlertaModal({ visible: true, mensaje: 'No se pudo guardar el lote en la base de datos.', tipo: 'error' });
+        return;
+      }
+
+      await cargarProductos();
       setIsAdding(false);
       setFormLote({ descripcion: '', categoria: 'Panadería', cantidad: '', unidad: 'pzas', precioOriginal: '', precioDescuento: '', fechaExpiracion: '' });
       setAlertaModal({ visible: true, mensaje: '¡Lote agregado! Métricas actualizadas.', tipo: 'exito' });
-    } else {
-      setAlertaModal({ visible: true, mensaje: 'Por favor, llena todos los campos.', tipo: 'error' });
+    } catch (error) {
+      console.log(error);
+      setAlertaModal({ visible: true, mensaje: 'Error de conexión con el servidor.', tipo: 'error' });
     }
   };
 
-  const handleMarcarVendido = (id: number) => {
-    setProductos(productos.map(p => 
-      p.id_lote === id 
-        ? new LoteComida(p.id_lote, p.descripcion, p.categoria, p.cantidad_en_stock, p.unidad_medida, p.precio_original, p.precio_descuento, p.fecha_expiracion, p.fecha_disponible, 'Vendido', p.icono)
-        : p
-    ));
-    setAlertaModal({ visible: true, mensaje: '¡Lote vendido! Tus ingresos reales han aumentado.', tipo: 'exito' });
+  // ✅ AHORA ACTUALIZA EN MYSQL (PUT)
+  const handleMarcarVendido = async (id: number) => {
+    try {
+      await fetch(`${API_URL}/lotes/${id}/vendido`, { method: "PUT" });
+      await cargarProductos();
+      setAlertaModal({ visible: true, mensaje: '¡Lote vendido! Tus ingresos reales han aumentado.', tipo: 'exito' });
+    } catch (error) {
+      console.log(error);
+    }
   };
 
-  const handleEliminar = (id: number) => {
-    setProductos(productos.filter(p => p.id_lote !== id));
-    setAlertaModal({ visible: true, mensaje: 'Lote eliminado de la base de datos.', tipo: 'exito' });
+  // ✅ AHORA ELIMINA EN MYSQL (DELETE)
+  const handleEliminar = async (id: number) => {
+    try {
+      await fetch(`${API_URL}/lotes/${id}`, { method: "DELETE" });
+      await cargarProductos();
+      setAlertaModal({ visible: true, mensaje: 'Lote eliminado de la base de datos.', tipo: 'exito' });
+    } catch (error) {
+      console.log(error);
+    }
   };
 
   const getColorCategoria = (cat: string) => {
@@ -182,7 +232,6 @@ export default function Dashboard({ nombreEmpresa }: DashboardProps) {
                 <option>Panadería</option><option>Lácteos</option><option>Preparada</option><option>Verduras</option>
               </select>
             </div>
-            {/* 👉 CORRECCIÓN 3: ATRIBUTO min="1" PARA BLOQUEAR NEGATIVOS DESDE EL HTML */}
             <div className="flex gap-2 col-span-1">
               <input type="number" min="1" className="w-full p-3 border-0 bg-white rounded-xl shadow-sm font-medium outline-none" placeholder="Cant." value={formLote.cantidad} onChange={e => setFormLote({...formLote, cantidad: e.target.value})} />
               <select className="w-full p-3 border-0 bg-white rounded-xl shadow-sm font-medium text-gray-600 outline-none" value={formLote.unidad} onChange={e => setFormLote({...formLote, unidad: e.target.value})}>

@@ -1,10 +1,14 @@
 import express from "express";
 import cors from "cors";
+import empresaRoutes from "./routes/empresa.routes";
 
 import "./config/database";
 
 import lotesRoutes from "./routes/lotes.routes";
 import reservasRoutes from "./routes/reservas.routes";
+import clienteRoutes from "./routes/cliente.routes";
+import pagoRoutes from "./routes/pago.routes";
+import reciboRoutes from "./routes/recibo.routes";
 
 const app = express();
 const PORT = 3001;
@@ -15,6 +19,10 @@ app.use(express.json());
 // Rutas
 app.use("/api/lotes", lotesRoutes);
 app.use("/api/reservas", reservasRoutes);
+app.use("/api/empresas", empresaRoutes);
+app.use("/api/clientes", clienteRoutes);
+app.use("/api/pagos", pagoRoutes);
+app.use("/api/recibos", reciboRoutes);
 
 // Ruta principal
 app.get("/", (req, res) => {

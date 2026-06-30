@@ -9,7 +9,7 @@ import type { CategoriaLote } from './models/LoteAlimento';
 import { Reserva } from './models/Reserva';
 import { Usuario } from './models/Usuario';
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = "http://localhost:3001/api";
 
 // Construye el usuario "semilla" una sola vez (esto NO viene del backend todavía,
 // porque no tienes login real con base de datos conectado aún)
