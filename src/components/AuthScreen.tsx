@@ -3,7 +3,7 @@ import { useState } from 'react';
 const API_URL = "http://localhost:3001/api";
 
 interface AuthScreenProps {
-  onLoginSuccess: (role: 'customer' | 'business', nombre: string, razonSocial?: string) => void;
+  onLoginSuccess: (role: 'customer' | 'business', nombre: string, razonSocial?: string, idCliente?: number) => void;
 }
 
 type AuthMode = 'register' | 'login' | 'business';
@@ -24,7 +24,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     e.preventDefault();
     setErrorMsg('');
 
-    // Si es registro de empresa, primero la creamos de verdad en MySQL
+    // Registro de empresa
     if (authMode === 'business') {
       setCargando(true);
       try {
@@ -38,9 +38,10 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           })
         });
 
+        const datos = await respuesta.json();
+
         if (!respuesta.ok) {
-          const err = await respuesta.json().catch(() => ({}));
-          setErrorMsg(err.mensaje || 'No se pudo registrar la empresa. ¿Ya existe esa Razón Social?');
+          setErrorMsg(datos.mensaje || 'No se pudo registrar la empresa. ¿Ya existe esa Razón Social?');
           setCargando(false);
           return;
         }
@@ -55,9 +56,41 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       return;
     }
 
-    // Cliente o login normal (sin backend todavía, igual que antes)
-    const nombreParaApp = nombreCompleto;
-    onLoginSuccess('customer', nombreParaApp || 'Usuario');
+    // Login: no creamos nada nuevo, solo pasamos (no hay validación real todavía)
+    if (authMode === 'login') {
+      onLoginSuccess('customer', nombreCompleto || 'Usuario');
+      return;
+    }
+
+    // Registro de cliente: lo creamos de verdad en MySQL
+    setCargando(true);
+    try {
+      const respuesta = await fetch(`${API_URL}/clientes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: nombreCompleto,
+          correo,
+          contrasena: password,
+          telefono: ''
+        })
+      });
+
+      const datos = await respuesta.json();
+
+      if (!respuesta.ok) {
+        setErrorMsg(datos.mensaje || 'No se pudo registrar el usuario.');
+        setCargando(false);
+        return;
+      }
+
+      setCargando(false);
+      onLoginSuccess('customer', nombreCompleto || 'Usuario', undefined, datos.id_cliente);
+    } catch (error) {
+      console.log(error);
+      setErrorMsg('No se pudo conectar con el servidor.');
+      setCargando(false);
+    }
   };
 
   return (

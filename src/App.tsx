@@ -6,20 +6,10 @@ import Dashboard from './components/Dashboard';
 import Carrito from './components/Carrito';
 import { LoteAlimento } from './models/LoteAlimento';
 import type { CategoriaLote } from './models/LoteAlimento';
-import { Reserva } from './models/Reserva';
 import { Usuario } from './models/Usuario';
 
 const API_URL = "http://localhost:3001/api";
 
-// Construye el usuario "semilla" una sola vez (esto NO viene del backend todavía,
-// porque no tienes login real con base de datos conectado aún)
-function crearUsuarioInicial(nombre: string): Usuario {
-  return new Usuario("USR-001", nombre, "habib@correo.com", "9981234567");
-}
-
-// El backend responde objetos JSON planos (sin métodos de la clase).
-// Esta función "reconstruye" cada objeto plano como una instancia real de LoteAlimento,
-// para que lote.calcularPorcentajeAhorro() funcione en el frontend.
 interface LoteCrudo {
   id_lote: number;
   razon_social_empresa: string;
@@ -29,6 +19,10 @@ interface LoteCrudo {
   precio_descuento: number;
   categoria: CategoriaLote;
   imagen?: string;
+}
+
+function crearUsuarioInicial(nombre: string, id: number): Usuario {
+  return new Usuario(String(id), nombre, "habib@correo.com", "9981234567");
 }
 
 function reconstruirLote(data: LoteCrudo): LoteAlimento {
@@ -50,31 +44,24 @@ interface CarritoItem {
 }
 
 export default function App() {
-  // --- Autenticación y rol ---
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState<'customer' | 'business' | null>(null);
   const [nombreNegocio, setNombreNegocio] = useState('');
+  const [razonSocialNegocio, setRazonSocialNegocio] = useState('');
   const [usuarioActual, setUsuarioActual] = useState<Usuario | null>(null);
 
-  // --- Datos del backend ---
   const [lotes, setLotes] = useState<LoteAlimento[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // --- Búsqueda y filtros (pantalla principal) ---
   const [busqueda, setBusqueda] = useState('');
   const [categoriaActiva, setCategoriaActiva] = useState<CategoriaLote | null>(null);
 
-  // --- Navegación entre pantallas ---
   const [vistaApp, setVistaApp] = useState<'main' | 'detalle' | 'carrito'>('main');
   const [loteSeleccionado, setLoteSeleccionado] = useState<LoteAlimento | null>(null);
 
-  // --- Carrito ---
   const [carrito, setCarrito] = useState<CarritoItem[]>([]);
-  const [reservas, setReservas] = useState<Reserva[]>([]);
 
-  // useEffect SÍ es correcto aquí: estamos sincronizando con un sistema EXTERNO
-  // (el servidor backend), que es exactamente para lo que React diseñó los effects.
   useEffect(() => {
     async function cargarLotesDesdeBackend() {
       try {
@@ -98,9 +85,8 @@ export default function App() {
     }
 
     cargarLotesDesdeBackend();
-  }, []); // [] = solo se ejecuta una vez, al montar el componente
+  }, []);
 
-  // Valor DERIVADO: se recalcula en cada render, no es estado propio
   const lotesFiltrados = lotes.filter((lote) => {
     const coincideCategoria = categoriaActiva === null || lote.categoria === categoriaActiva;
     const coincideBusqueda =
@@ -110,62 +96,58 @@ export default function App() {
     return coincideCategoria && coincideBusqueda;
   });
 
-  // --- Login: ahora distingue cliente vs negocio ---
-  const [razonSocialNegocio, setRazonSocialNegocio] = useState('');
-
-  const handleLoginSuccess = (role: 'customer' | 'business', nombre: string, razonSocial?: string) => {
+  const handleLoginSuccess = (role: 'customer' | 'business', nombre: string, razonSocial?: string, idCliente?: number) => {
     setIsLoggedIn(true);
     setUserRole(role);
     setNombreNegocio(nombre);
     if (role === 'business' && razonSocial) {
       setRazonSocialNegocio(razonSocial);
     }
-    if (role === 'customer') {
-      setUsuarioActual(crearUsuarioInicial(nombre));
+    if (role === 'customer' && idCliente) {
+      setUsuarioActual(crearUsuarioInicial(nombre, idCliente));
     }
   };
 
-  // --- Navegación: ver detalle de un lote ---
   const handleVerDetalle = (lote: LoteAlimento) => {
     setLoteSeleccionado(lote);
     setVistaApp('detalle');
   };
 
-  // --- Agregar al carrito (no reserva todavía, solo guarda la intención) ---
   const handleAgregarCarrito = (lote: LoteAlimento, cantidad: number) => {
     setCarrito([{ lote, cantidad }]);
     setVistaApp('carrito');
   };
 
-  // --- Confirmar compra: AQUÍ es donde de verdad hablamos con el backend ---
   const handleConfirmarCompra = async () => {
     if (!usuarioActual || carrito.length === 0) return;
 
     try {
-      // Por ahora el carrito solo soporta 1 lote a la vez (igual que su versión original)
       const item = carrito[0];
+      const ahora = new Date();
+      const pin = Math.floor(1000 + Math.random() * 9000).toString();
 
       const respuesta = await fetch(`${API_URL}/reservas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          usuarioId: usuarioActual.getId(),
-          loteId: item.lote.id,
-          cantidadReservada: item.cantidad,
-          metodoPago: 'En sucursal',
+          id_cliente: Number(usuarioActual.getId()),
+          razon_social_empresa: item.lote.establecimientoId,
+          hora_reserva: ahora.toTimeString().split(' ')[0],
+          fecha_reserva: ahora.toISOString().split('T')[0],
+          pin,
+          items: [
+            { id_lote: Number(item.lote.id), cantidad: item.cantidad }
+          ]
         }),
       });
 
+      const datos = await respuesta.json();
+
       if (!respuesta.ok) {
-        const datosError = await respuesta.json();
-        alert(`No se pudo confirmar la reserva: ${datosError.error}`);
+        alert('No se pudo confirmar la reserva: ' + datos.mensaje);
         return;
       }
 
-      const reservaCreada: Reserva = await respuesta.json();
-      setReservas([...reservas, reservaCreada]);
-
-      // Reflejamos la nueva disponibilidad en la UI (el backend ya la descontó en su array)
       const lotesActualizados = lotes.map((l) => {
         if (l.id === item.lote.id) {
           l.cantidadDisponible -= item.cantidad;
@@ -177,7 +159,7 @@ export default function App() {
 
       setCarrito([]);
       setVistaApp('main');
-      alert('¡Reserva confirmada con éxito! Revisa tu correo para las instrucciones de recolección.');
+      alert('¡Reserva confirmada con éxito! Tu PIN es: ' + pin);
     } catch (err) {
       console.error('Error al confirmar la reserva:', err);
       alert('No se pudo conectar con el servidor para confirmar la reserva.');
