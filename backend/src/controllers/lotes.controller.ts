@@ -1,21 +1,39 @@
-import { Request, Response } from 'express';
-import { lotes } from '../data/db';
+import { Request, Response } from "express";
+import { db } from "../config/database";
 
-// GET /api/lotes
-// Devuelve todos los lotes disponibles (para la pantalla principal)
-export function listarLotes(req: Request, res: Response) {
-    res.json(lotes);
+// Obtener todos los lotes
+export async function listarLotes(req: Request, res: Response) {
+    try {
+        const [rows] = await db.query("SELECT * FROM Lote_comida");
+        res.json(rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Error al obtener los lotes" });
+    }
 }
 
-// GET /api/lotes/:id
-// Devuelve un solo lote (para la pantalla de detalle)
-export function obtenerLotePorId(req: Request, res: Response) {
-    const { id } = req.params;
-    const lote = lotes.find((l) => l.id === id);
+// Obtener un lote por ID
+export async function obtenerLotePorId(req: Request, res: Response) {
+    try {
+        const { id } = req.params;
 
-    if (!lote) {
-        return res.status(404).json({ error: 'Lote no encontrado' });
+        const [rows]: any = await db.query(
+            "SELECT * FROM Lote_comida WHERE id_lote = ?",
+            [id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({
+                error: "Lote no encontrado"
+            });
+        }
+
+        res.json(rows[0]);
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            error: "Error del servidor"
+        });
     }
-
-    res.json(lote);
 }
