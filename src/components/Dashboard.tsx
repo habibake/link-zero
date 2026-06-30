@@ -22,7 +22,7 @@ class LoteComida {
 const API_URL = "http://localhost:3001/api";
 interface DashboardProps { nombreEmpresa: string; razonSocialEmpresa: string; }
 
-export default function Dashboard({ nombreEmpresa, razonSocialEmpresa }: DashboardProps) {
+export default function Dashboard({ razonSocialEmpresa }: DashboardProps) {
   const [vistaActual, setVistaActual] = useState('Inicio');
   const [filtroTabla, setFiltroTabla] = useState('Todos');
   const [busqueda, setBusqueda] = useState('');
@@ -39,7 +39,19 @@ export default function Dashboard({ nombreEmpresa, razonSocialEmpresa }: Dashboa
     try {
       const respuesta = await fetch(`${API_URL}/lotes`);
       const datos = await respuesta.json();
-      const nuevos = datos.map((p: any) =>
+      interface LoteCrudoBackend {
+  id_lote: number;
+  descripcion: string;
+  categoria: string;
+  cantidad_en_stock: number;
+  precio_original: number;
+  precio_descuento: number;
+  fecha_expiracion: string;
+  fecha_disponible: string;
+  estado?: string;
+}
+
+const nuevos = datos.map((p: LoteCrudoBackend) =>
         new LoteComida(
           p.id_lote,
           p.descripcion,
@@ -343,7 +355,7 @@ export default function Dashboard({ nombreEmpresa, razonSocialEmpresa }: Dashboa
       <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
         <div>
           <label className="text-xs text-gray-400 font-bold uppercase mb-2 block">Razón Social</label>
-          <input className="w-full border-2 border-gray-100 p-4 rounded-xl bg-gray-50 font-bold text-[#1A103C] focus:border-[#00E676] outline-none" value={razonSocial} onChange={(e) => setRazonSocial(e.target.value)} />
+          <input className="w-full border-2 border-gray-100 p-4 rounded-xl bg-gray-100 font-bold text-gray-400 outline-none cursor-not-allowed" value={razonSocial} disabled />
         </div>
         <div>
           <label className="text-xs text-gray-400 font-bold uppercase mb-2 block">Dirección Operativa</label>

@@ -20,15 +20,26 @@ function crearUsuarioInicial(nombre: string): Usuario {
 // El backend responde objetos JSON planos (sin métodos de la clase).
 // Esta función "reconstruye" cada objeto plano como una instancia real de LoteAlimento,
 // para que lote.calcularPorcentajeAhorro() funcione en el frontend.
-function reconstruirLote(data: LoteAlimento): LoteAlimento {
+interface LoteCrudo {
+  id_lote: number;
+  razon_social_empresa: string;
+  descripcion: string;
+  cantidad_en_stock: number;
+  precio_original: number;
+  precio_descuento: number;
+  categoria: CategoriaLote;
+  imagen?: string;
+}
+
+function reconstruirLote(data: LoteCrudo): LoteAlimento {
   return new LoteAlimento(
-    data.id,
-    data.establecimientoId,
+    String(data.id_lote),
+    data.razon_social_empresa,
     data.descripcion,
-    data.cantidadDisponible,
-    data.precioOriginal,
-    data.precioDescuento,
-    data.imagen,
+    data.cantidad_en_stock,
+    Number(data.precio_original),
+    Number(data.precio_descuento),
+    data.imagen || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=600',
     data.categoria
   );
 }
@@ -74,7 +85,7 @@ export default function App() {
           throw new Error('El servidor respondió con un error');
         }
 
-        const datos: LoteAlimento[] = await respuesta.json();
+        const datos: LoteCrudo[] = await respuesta.json();
         const lotesReconstruidos = datos.map(reconstruirLote);
         setLotes(lotesReconstruidos);
         setError(null);
