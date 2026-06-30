@@ -100,10 +100,15 @@ export default function App() {
   });
 
   // --- Login: ahora distingue cliente vs negocio ---
-  const handleLoginSuccess = (role: 'customer' | 'business', nombre: string) => {
+  const [razonSocialNegocio, setRazonSocialNegocio] = useState('');
+
+  const handleLoginSuccess = (role: 'customer' | 'business', nombre: string, razonSocial?: string) => {
     setIsLoggedIn(true);
     setUserRole(role);
     setNombreNegocio(nombre);
+    if (role === 'business' && razonSocial) {
+      setRazonSocialNegocio(razonSocial);
+    }
     if (role === 'customer') {
       setUsuarioActual(crearUsuarioInicial(nombre));
     }
@@ -173,7 +178,7 @@ export default function App() {
       {!isLoggedIn ? (
         <AuthScreen onLoginSuccess={handleLoginSuccess} />
       ) : userRole === 'business' ? (
-        <Dashboard nombreEmpresa={nombreNegocio} />
+        <Dashboard nombreEmpresa={nombreNegocio} razonSocialEmpresa={razonSocialNegocio} />
       ) : vistaApp === 'detalle' && loteSeleccionado ? (
         <LoteDetalle
           lote={loteSeleccionado}

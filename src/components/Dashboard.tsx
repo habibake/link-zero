@@ -20,9 +20,9 @@ class LoteComida {
 }
 
 const API_URL = "http://localhost:3001/api";
-interface DashboardProps { nombreEmpresa: string; }
+interface DashboardProps { nombreEmpresa: string; razonSocialEmpresa: string; }
 
-export default function Dashboard({ nombreEmpresa }: DashboardProps) {
+export default function Dashboard({ nombreEmpresa, razonSocialEmpresa }: DashboardProps) {
   const [vistaActual, setVistaActual] = useState('Inicio');
   const [filtroTabla, setFiltroTabla] = useState('Todos');
   const [busqueda, setBusqueda] = useState('');
@@ -62,7 +62,7 @@ export default function Dashboard({ nombreEmpresa }: DashboardProps) {
 
   const [formLote, setFormLote] = useState({ descripcion: '', categoria: 'Panadería', cantidad: '', unidad: 'pzas', precioOriginal: '', precioDescuento: '', fechaExpiracion: '' });
 
-  const [razonSocial, setRazonSocial] = useState(nombreEmpresa || 'Nozomi Restaurant');
+  const [razonSocial] = useState(razonSocialEmpresa || 'Nozomi Restaurant');
   const [direccion, setDireccion] = useState('Zona Hotelera, Cancún');
   const [horario, setHorario] = useState('08:00 AM - 10:00 PM');
 
