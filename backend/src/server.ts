@@ -13,7 +13,7 @@ import reciboRoutes from "./routes/recibo.routes";
 const app = express();
 const PORT = 3001;
 
-app.use(cors({ origin: "*" }));
+app.use(cors());
 app.use(express.json());
 
 // Rutas
@@ -29,7 +29,6 @@ app.get("/", (req, res) => {
     res.send("🚀 Link-Zero API funcionando");
 });
 
-// 0.0.0.0 = escucha en TODAS las interfaces de red, no solo localhost
-app.listen(PORT, "0.0.0.0", () => {
-    console.log(`🚀 Servidor corriendo en http://0.0.0.0:${PORT}`);
+app.listen(PORT, () => {
+    console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
 });

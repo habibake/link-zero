@@ -1,3 +1,4 @@
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import Main from './components/Main';
 import AuthScreen from './components/AuthScreen';
@@ -8,7 +9,7 @@ import { LoteAlimento } from './models/LoteAlimento';
 import type { CategoriaLote } from './models/LoteAlimento';
 import { Usuario } from './models/Usuario';
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+const API_URL = "http://localhost:3001/api";
 
 interface LoteCrudo {
   id_lote: number;
@@ -43,8 +44,10 @@ interface CarritoItem {
   cantidad: number;
 }
 
-export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+// Componente separado para usar useNavigate
+function AppConRutas() {
+  const navigate = useNavigate();
+
   const [userRole, setUserRole] = useState<'customer' | 'business' | null>(null);
   const [nombreNegocio, setNombreNegocio] = useState('');
   const [razonSocialNegocio, setRazonSocialNegocio] = useState('');
@@ -57,9 +60,7 @@ export default function App() {
   const [busqueda, setBusqueda] = useState('');
   const [categoriaActiva, setCategoriaActiva] = useState<CategoriaLote | null>(null);
 
-  const [vistaApp, setVistaApp] = useState<'main' | 'detalle' | 'carrito'>('main');
   const [loteSeleccionado, setLoteSeleccionado] = useState<LoteAlimento | null>(null);
-
   const [carrito, setCarrito] = useState<CarritoItem[]>([]);
 
   useEffect(() => {
@@ -67,14 +68,9 @@ export default function App() {
       try {
         setCargando(true);
         const respuesta = await fetch(`${API_URL}/lotes`);
-
-        if (!respuesta.ok) {
-          throw new Error('El servidor respondió con un error');
-        }
-
+        if (!respuesta.ok) throw new Error('El servidor respondió con un error');
         const datos: LoteCrudo[] = await respuesta.json();
-        const lotesReconstruidos = datos.map(reconstruirLote);
-        setLotes(lotesReconstruidos);
+        setLotes(datos.map(reconstruirLote));
         setError(null);
       } catch (err) {
         console.error('Error al cargar lotes:', err);
@@ -83,7 +79,6 @@ export default function App() {
         setCargando(false);
       }
     }
-
     cargarLotesDesdeBackend();
   }, []);
 
@@ -97,25 +92,27 @@ export default function App() {
   });
 
   const handleLoginSuccess = (role: 'customer' | 'business', nombre: string, razonSocial?: string, idCliente?: number) => {
-    setIsLoggedIn(true);
     setUserRole(role);
     setNombreNegocio(nombre);
     if (role === 'business' && razonSocial) {
       setRazonSocialNegocio(razonSocial);
+      // navigate con replace: el usuario no puede volver atrás al login
+      navigate('/dashboard', { replace: true });
     }
     if (role === 'customer' && idCliente) {
       setUsuarioActual(crearUsuarioInicial(nombre, idCliente));
+      navigate('/home', { replace: true });
     }
   };
 
   const handleVerDetalle = (lote: LoteAlimento) => {
     setLoteSeleccionado(lote);
-    setVistaApp('detalle');
+    navigate('/lote/' + lote.id);
   };
 
   const handleAgregarCarrito = (lote: LoteAlimento, cantidad: number) => {
     setCarrito([{ lote, cantidad }]);
-    setVistaApp('carrito');
+    navigate('/carrito');
   };
 
   const handleConfirmarCompra = async () => {
@@ -135,9 +132,7 @@ export default function App() {
           hora_reserva: ahora.toTimeString().split(' ')[0],
           fecha_reserva: ahora.toISOString().split('T')[0],
           pin,
-          items: [
-            { id_lote: Number(item.lote.id), cantidad: item.cantidad }
-          ]
+          items: [{ id_lote: Number(item.lote.id), cantidad: item.cantidad }]
         }),
       });
 
@@ -148,61 +143,116 @@ export default function App() {
         return;
       }
 
-      const lotesActualizados = lotes.map((l) => {
+      setLotes(lotes.map((l) => {
         if (l.id === item.lote.id) {
           l.cantidadDisponible -= item.cantidad;
           l.estado = l.cantidadDisponible > 0 ? 'Disponible' : 'Agotado';
         }
         return l;
-      });
-      setLotes(lotesActualizados);
+      }));
 
       setCarrito([]);
-      setVistaApp('main');
-      alert('¡Reserva confirmada con éxito! Tu PIN es: ' + pin);
+      // replace: true para que no puedan volver al carrito con "atrás" después de confirmar
+      navigate('/home', { replace: true });
+      alert('¡Reserva confirmada! Tu PIN es: ' + pin);
     } catch (err) {
       console.error('Error al confirmar la reserva:', err);
-      alert('No se pudo conectar con el servidor para confirmar la reserva.');
+      alert('No se pudo conectar con el servidor.');
     }
   };
 
+  if (cargando) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FDFCF8]">
+        <p className="text-[#1A103C] font-bold text-lg">Cargando lotes disponibles...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FDFCF8]">
+        <p className="text-red-600 font-bold text-lg">{error}</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="w-full min-h-screen">
-      {!isLoggedIn ? (
-        <AuthScreen onLoginSuccess={handleLoginSuccess} />
-      ) : userRole === 'business' ? (
-        <Dashboard nombreEmpresa={nombreNegocio} razonSocialEmpresa={razonSocialNegocio} />
-      ) : vistaApp === 'detalle' && loteSeleccionado ? (
-        <LoteDetalle
-          lote={loteSeleccionado}
-          onAgregarCarrito={handleAgregarCarrito}
-          onVolver={() => setVistaApp('main')}
-        />
-      ) : vistaApp === 'carrito' ? (
-        <Carrito
-          items={carrito}
-          onConfirmar={handleConfirmarCompra}
-          onVolver={() => setVistaApp('detalle')}
-        />
-      ) : cargando ? (
-        <div className="min-h-screen flex items-center justify-center bg-[#FDFCF8]">
-          <p className="text-[#1A103C] font-bold text-lg">Cargando lotes disponibles...</p>
-        </div>
-      ) : error ? (
-        <div className="min-h-screen flex items-center justify-center bg-[#FDFCF8]">
-          <p className="text-red-600 font-bold text-lg">{error}</p>
-        </div>
-      ) : (
-        <Main
-          lotes={lotesFiltrados}
-          onReservar={handleVerDetalle}
-          onVerDetalle={handleVerDetalle}
-          busqueda={busqueda}
-          onCambiarBusqueda={setBusqueda}
-          categoriaActiva={categoriaActiva}
-          onSeleccionarCategoria={setCategoriaActiva}
-        />
-      )}
-    </div>
+    <Routes>
+      {/* Si no hay sesión, va al login */}
+      <Route path="/" element={<AuthScreen onLoginSuccess={handleLoginSuccess} />} />
+
+      {/* Rutas de cliente */}
+      <Route
+        path="/home"
+        element={
+          userRole === 'customer' ? (
+            <Main
+              lotes={lotesFiltrados}
+              onReservar={handleVerDetalle}
+              onVerDetalle={handleVerDetalle}
+              busqueda={busqueda}
+              onCambiarBusqueda={setBusqueda}
+              categoriaActiva={categoriaActiva}
+              onSeleccionarCategoria={setCategoriaActiva}
+            />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+
+      <Route
+        path="/lote/:id"
+        element={
+          userRole === 'customer' && loteSeleccionado ? (
+            <LoteDetalle
+              lote={loteSeleccionado}
+              onAgregarCarrito={handleAgregarCarrito}
+              onVolver={() => navigate('/home', { replace: true })}
+            />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+
+      <Route
+        path="/carrito"
+        element={
+          userRole === 'customer' && carrito.length > 0 ? (
+            <Carrito
+              items={carrito}
+              onConfirmar={handleConfirmarCompra}
+              onVolver={() => navigate(-1)}
+            />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+
+      {/* Ruta de empresa */}
+      <Route
+        path="/dashboard"
+        element={
+          userRole === 'business' ? (
+            <Dashboard
+              nombreEmpresa={nombreNegocio}
+              razonSocialEmpresa={razonSocialNegocio}
+            />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+
+      {/* Cualquier ruta desconocida → login */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
+}
+
+export default function App() {
+  return <AppConRutas />;
 }
