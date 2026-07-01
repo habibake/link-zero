@@ -1,7 +1,7 @@
 import { Router } from "express";
-
 import {
     listarLotes,
+    listarLotesPorEmpresa,
     obtenerLotePorId,
     crearLote,
     actualizarLote,
@@ -10,19 +10,11 @@ import {
 
 const router = Router();
 
-// Obtener todos los lotes
 router.get("/", listarLotes);
-
-// Obtener un lote por ID
+router.get("/empresa/:razon_social", listarLotesPorEmpresa);
 router.get("/:id", obtenerLotePorId);
-
-// Crear un lote
 router.post("/", crearLote);
-
-// Actualizar un lote
 router.put("/:id", actualizarLote);
-
-// Eliminar un lote
 router.delete("/:id", eliminarLote);
 
 export default router;

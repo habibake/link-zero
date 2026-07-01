@@ -5,6 +5,7 @@ import AuthScreen from './components/AuthScreen';
 import LoteDetalle from './components/LoteDetalle';
 import Dashboard from './components/Dashboard';
 import Carrito from './components/Carrito';
+import MiCuenta from './components/MiCuenta';
 import { LoteAlimento } from './models/LoteAlimento';
 import type { CategoriaLote } from './models/LoteAlimento';
 import { Usuario } from './models/Usuario';
@@ -22,8 +23,8 @@ interface LoteCrudo {
   imagen?: string;
 }
 
-function crearUsuarioInicial(nombre: string, id: number): Usuario {
-  return new Usuario(String(id), nombre, "habib@correo.com", "9981234567");
+function crearUsuario(nombre: string, id: number): Usuario {
+  return new Usuario(String(id), nombre, '', '');
 }
 
 function reconstruirLote(data: LoteCrudo): LoteAlimento {
@@ -44,14 +45,18 @@ interface CarritoItem {
   cantidad: number;
 }
 
-// Componente separado para usar useNavigate
 function AppConRutas() {
   const navigate = useNavigate();
 
-  const [userRole, setUserRole] = useState<'customer' | 'business' | null>(null);
-  const [nombreNegocio, setNombreNegocio] = useState('');
-  const [razonSocialNegocio, setRazonSocialNegocio] = useState('');
-  const [usuarioActual, setUsuarioActual] = useState<Usuario | null>(null);
+  const sesionGuardada = JSON.parse(localStorage.getItem('sesion_linkzero') || 'null');
+
+  const [userRole, setUserRole] = useState<'customer' | 'business' | null>(sesionGuardada?.role || null);
+  const [nombreNegocio, setNombreNegocio] = useState(sesionGuardada?.nombre || '');
+  const [correoUsuario, setCorreoUsuario] = useState(sesionGuardada?.correo || '');
+  const [razonSocialNegocio, setRazonSocialNegocio] = useState(sesionGuardada?.razonSocial || '');
+  const [usuarioActual, setUsuarioActual] = useState<Usuario | null>(
+    sesionGuardada?.idCliente ? crearUsuario(sesionGuardada.nombre, sesionGuardada.idCliente) : null
+  );
 
   const [lotes, setLotes] = useState<LoteAlimento[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -59,27 +64,26 @@ function AppConRutas() {
 
   const [busqueda, setBusqueda] = useState('');
   const [categoriaActiva, setCategoriaActiva] = useState<CategoriaLote | null>(null);
-
   const [loteSeleccionado, setLoteSeleccionado] = useState<LoteAlimento | null>(null);
   const [carrito, setCarrito] = useState<CarritoItem[]>([]);
 
   useEffect(() => {
-    async function cargarLotesDesdeBackend() {
+    async function cargarLotes() {
       try {
         setCargando(true);
         const respuesta = await fetch(`${API_URL}/lotes`);
-        if (!respuesta.ok) throw new Error('El servidor respondió con un error');
+        if (!respuesta.ok) throw new Error('Error del servidor');
         const datos: LoteCrudo[] = await respuesta.json();
         setLotes(datos.map(reconstruirLote));
         setError(null);
       } catch (err) {
-        console.error('Error al cargar lotes:', err);
-        setError('No se pudo conectar con el servidor. ¿Está corriendo el backend?');
+        console.error(err);
+        setError('No se pudo conectar con el servidor.');
       } finally {
         setCargando(false);
       }
     }
-    cargarLotesDesdeBackend();
+    cargarLotes();
   }, []);
 
   const lotesFiltrados = lotes.filter((lote) => {
@@ -91,18 +95,33 @@ function AppConRutas() {
     return coincideCategoria && coincideBusqueda;
   });
 
-  const handleLoginSuccess = (role: 'customer' | 'business', nombre: string, razonSocial?: string, idCliente?: number) => {
+  const handleLoginSuccess = (role: 'customer' | 'business', nombre: string, razonSocial?: string, idCliente?: number, correo?: string) => {
     setUserRole(role);
     setNombreNegocio(nombre);
+
     if (role === 'business' && razonSocial) {
       setRazonSocialNegocio(razonSocial);
-      // navigate con replace: el usuario no puede volver atrás al login
+      localStorage.setItem('sesion_linkzero', JSON.stringify({ role, nombre, razonSocial }));
       navigate('/dashboard', { replace: true });
     }
+
     if (role === 'customer' && idCliente) {
-      setUsuarioActual(crearUsuarioInicial(nombre, idCliente));
+      const usuario = crearUsuario(nombre, idCliente);
+      setUsuarioActual(usuario);
+      setCorreoUsuario(correo || '');
+      localStorage.setItem('sesion_linkzero', JSON.stringify({ role, nombre, idCliente, correo }));
       navigate('/home', { replace: true });
     }
+  };
+
+  const handleCerrarSesion = () => {
+    localStorage.removeItem('sesion_linkzero');
+    setUserRole(null);
+    setUsuarioActual(null);
+    setNombreNegocio('');
+    setRazonSocialNegocio('');
+    setCorreoUsuario('');
+    setCarrito([]);
   };
 
   const handleVerDetalle = (lote: LoteAlimento) => {
@@ -152,11 +171,11 @@ function AppConRutas() {
       }));
 
       setCarrito([]);
-      // replace: true para que no puedan volver al carrito con "atrás" después de confirmar
-      navigate('/home', { replace: true });
       alert('¡Reserva confirmada! Tu PIN es: ' + pin);
+      navigate('/home', { replace: true });
+
     } catch (err) {
-      console.error('Error al confirmar la reserva:', err);
+      console.error(err);
       alert('No se pudo conectar con el servidor.');
     }
   };
@@ -179,75 +198,81 @@ function AppConRutas() {
 
   return (
     <Routes>
-      {/* Si no hay sesión, va al login */}
-      <Route path="/" element={<AuthScreen onLoginSuccess={handleLoginSuccess} />} />
+      <Route path="/" element={
+        userRole ? (
+          <Navigate to={userRole === 'business' ? '/dashboard' : '/home'} replace />
+        ) : (
+          <AuthScreen onLoginSuccess={handleLoginSuccess} />
+        )
+      } />
 
-      {/* Rutas de cliente */}
-      <Route
-        path="/home"
-        element={
-          userRole === 'customer' ? (
-            <Main
-              lotes={lotesFiltrados}
-              onReservar={handleVerDetalle}
-              onVerDetalle={handleVerDetalle}
-              busqueda={busqueda}
-              onCambiarBusqueda={setBusqueda}
-              categoriaActiva={categoriaActiva}
-              onSeleccionarCategoria={setCategoriaActiva}
-            />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
+      <Route path="/home" element={
+        userRole === 'customer' ? (
+          <Main
+            lotes={lotesFiltrados}
+            onReservar={handleVerDetalle}
+            onVerDetalle={handleVerDetalle}
+            busqueda={busqueda}
+            onCambiarBusqueda={setBusqueda}
+            categoriaActiva={categoriaActiva}
+            onSeleccionarCategoria={setCategoriaActiva}
+            onMiCuentaClick={() => navigate('/micuenta')}
+          />
+        ) : (
+          <Navigate to="/" replace />
+        )
+      } />
 
-      <Route
-        path="/lote/:id"
-        element={
-          userRole === 'customer' && loteSeleccionado ? (
-            <LoteDetalle
-              lote={loteSeleccionado}
-              onAgregarCarrito={handleAgregarCarrito}
-              onVolver={() => navigate('/home', { replace: true })}
-            />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
+      <Route path="/micuenta" element={
+        userRole === 'customer' && usuarioActual ? (
+          <MiCuenta
+            nombreUsuario={nombreNegocio}
+            correoUsuario={correoUsuario}
+            idCliente={Number(usuarioActual.getId())}
+            onCerrarSesion={handleCerrarSesion}
+          />
+        ) : (
+          <Navigate to="/" replace />
+        )
+      } />
 
-      <Route
-        path="/carrito"
-        element={
-          userRole === 'customer' && carrito.length > 0 ? (
-            <Carrito
-              items={carrito}
-              onConfirmar={handleConfirmarCompra}
-              onVolver={() => navigate(-1)}
-            />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
+      <Route path="/lote/:id" element={
+        userRole === 'customer' && loteSeleccionado ? (
+          <LoteDetalle
+            lote={loteSeleccionado}
+            onAgregarCarrito={handleAgregarCarrito}
+            onVolver={() => navigate('/home', { replace: true })}
+          />
+        ) : (
+          <Navigate to="/" replace />
+        )
+      } />
 
-      {/* Ruta de empresa */}
-      <Route
-        path="/dashboard"
-        element={
-          userRole === 'business' ? (
-            <Dashboard
-              nombreEmpresa={nombreNegocio}
-              razonSocialEmpresa={razonSocialNegocio}
-            />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
+      <Route path="/carrito" element={
+        userRole === 'customer' && carrito.length > 0 ? (
+          <Carrito
+            items={carrito}
+            onConfirmar={handleConfirmarCompra}
+            onVolver={() => navigate(-1)}
+          />
+        ) : (
+          <Navigate to="/home" replace />
+        )
+      } />
 
-      {/* Cualquier ruta desconocida → login */}
+      <Route path="/dashboard" element={
+        userRole === 'business' ? (
+          <Dashboard
+  nombreEmpresa={nombreNegocio}
+  razonSocialEmpresa={razonSocialNegocio}
+  onCerrarSesion={handleCerrarSesion}
+/>
+          
+        ) : (
+          <Navigate to="/" replace />
+        )
+      } />
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

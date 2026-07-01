@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
-// CLASE ENTIDAD
 class LoteComida {
   id_lote: number;
   descripcion: string;
@@ -12,34 +11,14 @@ class LoteComida {
   fecha_expiracion: string;
   fecha_disponible: string;
   estado: string;
-  icono: string;
+  imagen: string;
 
-  constructor(id_lote: number, descripcion: string, categoria: string, cantidad_en_stock: number, unidad_medida: string, precio_original: number, precio_descuento: number, fecha_expiracion: string, fecha_disponible: string, estado: string, icono: string) {
-    this.id_lote = id_lote; this.descripcion = descripcion; this.categoria = categoria; this.cantidad_en_stock = cantidad_en_stock; this.unidad_medida = unidad_medida; this.precio_original = precio_original; this.precio_descuento = precio_descuento; this.fecha_expiracion = fecha_expiracion; this.fecha_disponible = fecha_disponible; this.estado = estado; this.icono = icono;
+  constructor(id_lote: number, descripcion: string, categoria: string, cantidad_en_stock: number, unidad_medida: string, precio_original: number, precio_descuento: number, fecha_expiracion: string, fecha_disponible: string, estado: string, imagen: string) {
+    this.id_lote = id_lote; this.descripcion = descripcion; this.categoria = categoria; this.cantidad_en_stock = cantidad_en_stock; this.unidad_medida = unidad_medida; this.precio_original = precio_original; this.precio_descuento = precio_descuento; this.fecha_expiracion = fecha_expiracion; this.fecha_disponible = fecha_disponible; this.estado = estado; this.imagen = imagen;
   }
 }
 
-const API_URL = "http://localhost:3001/api";
-interface DashboardProps { nombreEmpresa: string; razonSocialEmpresa: string; }
-
-export default function Dashboard({ razonSocialEmpresa }: DashboardProps) {
-  const [vistaActual, setVistaActual] = useState('Inicio');
-  const [filtroTabla, setFiltroTabla] = useState('Todos');
-  const [busqueda, setBusqueda] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
-  const [alertaModal, setAlertaModal] = useState({ visible: false, mensaje: '', tipo: '' });
-
-  const [productos, setProductos] = useState<LoteComida[]>([]);
-
-  useEffect(() => {
-    cargarProductos();
-  }, []);
-
-  async function cargarProductos() {
-    try {
-      const respuesta = await fetch(`${API_URL}/lotes`);
-      const datos = await respuesta.json();
-      interface LoteCrudoBackend {
+interface LoteCrudoBackend {
   id_lote: number;
   descripcion: string;
   categoria: string;
@@ -49,21 +28,61 @@ export default function Dashboard({ razonSocialEmpresa }: DashboardProps) {
   fecha_expiracion: string;
   fecha_disponible: string;
   estado?: string;
+  imagen?: string;
 }
 
-const nuevos = datos.map((p: LoteCrudoBackend) =>
+const API_URL = "http://localhost:3001/api";
+const IMAGEN_DEFAULT = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=400&auto=format&fit=crop";
+
+interface DashboardProps {
+  nombreEmpresa: string;
+  razonSocialEmpresa: string;
+  onCerrarSesion: () => void;
+}
+
+export default function Dashboard({ razonSocialEmpresa, onCerrarSesion }: DashboardProps) {
+  const [vistaActual, setVistaActual] = useState('Inicio');
+  const [filtroTabla, setFiltroTabla] = useState('Todos');
+  const [busqueda, setBusqueda] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+  const [alertaModal, setAlertaModal] = useState({ visible: false, mensaje: '', tipo: '' });
+  const [productos, setProductos] = useState<LoteComida[]>([]);
+  const [imagenPreview, setImagenPreview] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [razonSocial] = useState(razonSocialEmpresa);
+  const [direccion, setDireccion] = useState('');
+  const [horario, setHorario] = useState('');
+
+  const [formLote, setFormLote] = useState({
+    descripcion: '', categoria: 'Panadería', cantidad: '',
+    unidad: 'pzas', precioOriginal: '', precioDescuento: '', fechaExpiracion: ''
+  });
+
+  useEffect(() => {
+    cargarProductos();
+  }, []);
+
+  useEffect(() => {
+    if (!alertaModal.visible) return;
+    const timer = setTimeout(() => {
+      setAlertaModal({ visible: false, mensaje: '', tipo: '' });
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [alertaModal.visible]);
+
+  async function cargarProductos() {
+    try {
+      const respuesta = await fetch(`${API_URL}/lotes/empresa/${encodeURIComponent(razonSocial)}`);
+      const datos = await respuesta.json();
+      const nuevos = datos.map((p: LoteCrudoBackend) =>
         new LoteComida(
-          p.id_lote,
-          p.descripcion,
-          p.categoria,
-          p.cantidad_en_stock,
-          "pzas",
-          p.precio_original,
-          p.precio_descuento,
-          p.fecha_expiracion,
-          p.fecha_disponible,
+          p.id_lote, p.descripcion, p.categoria,
+          p.cantidad_en_stock, "pzas",
+          p.precio_original, p.precio_descuento,
+          p.fecha_expiracion, p.fecha_disponible,
           p.estado || "Disponible",
-          "🍞"
+          p.imagen || IMAGEN_DEFAULT
         )
       );
       setProductos(nuevos);
@@ -72,19 +91,21 @@ const nuevos = datos.map((p: LoteCrudoBackend) =>
     }
   }
 
-  const [formLote, setFormLote] = useState({ descripcion: '', categoria: 'Panadería', cantidad: '', unidad: 'pzas', precioOriginal: '', precioDescuento: '', fechaExpiracion: '' });
-
-  const [razonSocial] = useState(razonSocialEmpresa || 'Nozomi Restaurant');
-  const [direccion, setDireccion] = useState('Zona Hotelera, Cancún');
-  const [horario, setHorario] = useState('08:00 AM - 10:00 PM');
+  const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagenPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const totalLotes = productos.filter(p => p.estado === 'Disponible').length;
   const metaLotes = 20;
   const progresoLotes = Math.min((totalLotes / metaLotes) * 100, 100);
-
   const ingresosProyectados = productos.reduce((acc, curr) => curr.estado === 'Disponible' ? acc + (curr.precio_descuento * curr.cantidad_en_stock) : acc, 0);
   const progresoIngresos = Math.min((ingresosProyectados / 10000) * 100, 100);
-
   const kgRescatados = productos.reduce((acc, curr) => acc + (curr.cantidad_en_stock * 1.5), 0);
   const progresoKg = Math.min((kgRescatados / 500) * 100, 100);
 
@@ -92,12 +113,10 @@ const nuevos = datos.map((p: LoteCrudoBackend) =>
     let cumpleFiltroBoton = true;
     if (filtroTabla === 'Disponibles') cumpleFiltroBoton = p.estado === 'Disponible';
     if (filtroTabla === 'Vendidos') cumpleFiltroBoton = p.estado === 'Vendido';
-
     const cumpleBusqueda = p.descripcion.toLowerCase().includes(busqueda.toLowerCase()) || p.categoria.toLowerCase().includes(busqueda.toLowerCase());
     return cumpleFiltroBoton && cumpleBusqueda;
   });
 
-  // ✅ AHORA GUARDA EN MYSQL (POST)
   const handleAddItem = async () => {
     const { descripcion, categoria, cantidad, precioOriginal, precioDescuento, fechaExpiracion } = formLote;
 
@@ -105,9 +124,8 @@ const nuevos = datos.map((p: LoteCrudoBackend) =>
       setAlertaModal({ visible: true, mensaje: 'El stock y los precios deben ser números válidos y mayores a cero.', tipo: 'error' });
       return;
     }
-
     if (!descripcion || !cantidad || !precioOriginal || !precioDescuento || !fechaExpiracion) {
-      setAlertaModal({ visible: true, mensaje: 'Por favor, llena todos los campos.', tipo: 'error' });
+      setAlertaModal({ visible: true, mensaje: 'Por favor, llena todos los campos obligatorios.', tipo: 'error' });
       return;
     }
 
@@ -117,48 +135,52 @@ const nuevos = datos.map((p: LoteCrudoBackend) =>
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           razon_social_empresa: razonSocial,
-          descripcion,
-          categoria,
+          descripcion, categoria,
           cantidad_en_stock: Number(cantidad),
           precio_original: Number(precioOriginal),
           precio_descuento: Number(precioDescuento),
           fecha_expiracion: fechaExpiracion,
-          fecha_disponible: new Date().toISOString().split("T")[0]
+          fecha_disponible: new Date().toISOString().split("T")[0],
+          imagen: imagenPreview || IMAGEN_DEFAULT
         })
       });
 
       if (!respuesta.ok) {
-        setAlertaModal({ visible: true, mensaje: 'No se pudo guardar el lote en la base de datos.', tipo: 'error' });
+        setAlertaModal({ visible: true, mensaje: 'No se pudo guardar el lote.', tipo: 'error' });
         return;
       }
 
       await cargarProductos();
       setIsAdding(false);
+      setImagenPreview('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       setFormLote({ descripcion: '', categoria: 'Panadería', cantidad: '', unidad: 'pzas', precioOriginal: '', precioDescuento: '', fechaExpiracion: '' });
-      setAlertaModal({ visible: true, mensaje: '¡Lote agregado! Métricas actualizadas.', tipo: 'exito' });
+      setAlertaModal({ visible: true, mensaje: '¡Lote agregado con éxito!', tipo: 'exito' });
     } catch (error) {
       console.log(error);
       setAlertaModal({ visible: true, mensaje: 'Error de conexión con el servidor.', tipo: 'error' });
     }
   };
 
-  // ✅ AHORA ACTUALIZA EN MYSQL (PUT)
   const handleMarcarVendido = async (id: number) => {
     try {
-      await fetch(`${API_URL}/lotes/${id}/vendido`, { method: "PUT" });
+      await fetch(`${API_URL}/lotes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado: 'Vendido' })
+      });
       await cargarProductos();
-      setAlertaModal({ visible: true, mensaje: '¡Lote vendido! Tus ingresos reales han aumentado.', tipo: 'exito' });
+      setAlertaModal({ visible: true, mensaje: '¡Lote marcado como vendido!', tipo: 'exito' });
     } catch (error) {
       console.log(error);
     }
   };
 
-  // ✅ AHORA ELIMINA EN MYSQL (DELETE)
   const handleEliminar = async (id: number) => {
     try {
       await fetch(`${API_URL}/lotes/${id}`, { method: "DELETE" });
       await cargarProductos();
-      setAlertaModal({ visible: true, mensaje: 'Lote eliminado de la base de datos.', tipo: 'exito' });
+      setAlertaModal({ visible: true, mensaje: 'Lote eliminado.', tipo: 'exito' });
     } catch (error) {
       console.log(error);
     }
@@ -204,7 +226,7 @@ const nuevos = datos.map((p: LoteCrudoBackend) =>
           <div className="bg-purple-50 p-2 rounded-xl text-xl">📈</div>
         </div>
         <div>
-          <h2 className="text-4xl font-extrabold text-[#1A103C]">${ingresosProyectados}</h2>
+          <h2 className="text-4xl font-extrabold text-[#1A103C]">${ingresosProyectados.toFixed(2)}</h2>
           <p className="text-gray-500 text-sm font-medium mb-3">Ingresos proyectados (De activos)</p>
           <div className="w-full bg-gray-100 rounded-full h-1.5"><div className="bg-purple-500 h-1.5 rounded-full transition-all duration-1000" style={{width: `${progresoIngresos}%`}}></div></div>
         </div>
@@ -227,7 +249,7 @@ const nuevos = datos.map((p: LoteCrudoBackend) =>
               </button>
             ))}
           </div>
-          <button onClick={() => setIsAdding(!isAdding)} className="bg-[#00E676] px-5 py-2 rounded-xl font-extrabold text-sm text-[#1A103C] hover:scale-105 transition-transform shadow-sm">
+          <button onClick={() => { setIsAdding(!isAdding); setImagenPreview(''); }} className="bg-[#00E676] px-5 py-2 rounded-xl font-extrabold text-sm text-[#1A103C] hover:scale-105 transition-transform shadow-sm">
             {isAdding ? '✕ Cancelar' : '+ Nuevo Lote'}
           </button>
         </div>
@@ -235,31 +257,104 @@ const nuevos = datos.map((p: LoteCrudoBackend) =>
 
       {isAdding && (
         <div className="p-6 bg-green-50/50 border-b border-gray-100 animate-in fade-in duration-300">
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-4">
-            <div className="col-span-2">
-              <input className="w-full p-3 border-0 bg-white rounded-xl shadow-sm font-medium outline-none" placeholder="Descripción" value={formLote.descripcion} onChange={e => setFormLote({...formLote, descripcion: e.target.value})} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+
+            {/* Columna izquierda: imagen */}
+            <div className="flex flex-col gap-3">
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full h-48 rounded-2xl border-2 border-dashed border-gray-200 bg-white flex flex-col items-center justify-center cursor-pointer hover:border-[#00E676] transition-colors overflow-hidden"
+              >
+                {imagenPreview ? (
+                  <img src={imagenPreview} alt="preview" className="w-full h-full object-cover rounded-2xl" />
+                ) : (
+                  <>
+                    <span className="text-4xl mb-2">📸</span>
+                    <p className="text-gray-400 text-sm font-bold">Click para subir imagen</p>
+                    <p className="text-gray-300 text-xs mt-1">JPG, PNG, WEBP</p>
+                  </>
+                )}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImagenChange}
+              />
+              {imagenPreview && (
+                <button
+                  onClick={() => { setImagenPreview(''); if(fileInputRef.current) fileInputRef.current.value = ''; }}
+                  className="text-xs text-red-400 font-bold hover:text-red-600 transition-colors"
+                >
+                  ✕ Quitar imagen
+                </button>
+              )}
             </div>
-            <div>
-              <select className="w-full p-3 border-0 bg-white rounded-xl shadow-sm font-medium text-gray-600 outline-none" value={formLote.categoria} onChange={e => setFormLote({...formLote, categoria: e.target.value})}>
-                <option>Panadería</option><option>Lácteos</option><option>Preparada</option><option>Verduras</option>
+
+            {/* Columna derecha: campos */}
+            <div className="flex flex-col gap-3">
+              <input
+                className="w-full p-3 border-0 bg-white rounded-xl shadow-sm font-medium outline-none"
+                placeholder="Descripción del lote *"
+                value={formLote.descripcion}
+                onChange={e => setFormLote({...formLote, descripcion: e.target.value})}
+              />
+              <select
+                className="w-full p-3 border-0 bg-white rounded-xl shadow-sm font-medium text-gray-600 outline-none"
+                value={formLote.categoria}
+                onChange={e => setFormLote({...formLote, categoria: e.target.value})}
+              >
+                <option>Panadería</option>
+                <option>Lácteos</option>
+                <option>Preparada</option>
+                <option>Verduras</option>
               </select>
-            </div>
-            <div className="flex gap-2 col-span-1">
-              <input type="number" min="1" className="w-full p-3 border-0 bg-white rounded-xl shadow-sm font-medium outline-none" placeholder="Cant." value={formLote.cantidad} onChange={e => setFormLote({...formLote, cantidad: e.target.value})} />
-              <select className="w-full p-3 border-0 bg-white rounded-xl shadow-sm font-medium text-gray-600 outline-none" value={formLote.unidad} onChange={e => setFormLote({...formLote, unidad: e.target.value})}>
-                <option>pzas</option><option>kg</option>
-              </select>
-            </div>
-            <div className="flex gap-2 col-span-1">
-              <input type="number" min="1" className="w-full p-3 border-0 bg-white rounded-xl shadow-sm font-medium outline-none" placeholder="$ Orig." value={formLote.precioOriginal} onChange={e => setFormLote({...formLote, precioOriginal: e.target.value})} />
-              <input type="number" min="1" className="w-full p-3 border-0 bg-white rounded-xl shadow-sm font-medium outline-none" placeholder="$ Desc." value={formLote.precioDescuento} onChange={e => setFormLote({...formLote, precioDescuento: e.target.value})} />
-            </div>
-            <div className="col-span-1">
-              <input type="date" className="w-full p-3 border-0 bg-white rounded-xl shadow-sm font-medium text-gray-500 outline-none" value={formLote.fechaExpiracion} onChange={e => setFormLote({...formLote, fechaExpiracion: e.target.value})} />
+              <div className="flex gap-2">
+                <input
+                  type="number" min="1"
+                  className="w-full p-3 border-0 bg-white rounded-xl shadow-sm font-medium outline-none"
+                  placeholder="Cantidad *"
+                  value={formLote.cantidad}
+                  onChange={e => setFormLote({...formLote, cantidad: e.target.value})}
+                />
+                <select
+                  className="w-24 p-3 border-0 bg-white rounded-xl shadow-sm font-medium text-gray-600 outline-none"
+                  value={formLote.unidad}
+                  onChange={e => setFormLote({...formLote, unidad: e.target.value})}
+                >
+                  <option>pzas</option>
+                  <option>kg</option>
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="number" min="1"
+                  className="w-full p-3 border-0 bg-white rounded-xl shadow-sm font-medium outline-none"
+                  placeholder="$ Precio original *"
+                  value={formLote.precioOriginal}
+                  onChange={e => setFormLote({...formLote, precioOriginal: e.target.value})}
+                />
+                <input
+                  type="number" min="1"
+                  className="w-full p-3 border-0 bg-white rounded-xl shadow-sm font-medium outline-none"
+                  placeholder="$ Precio descuento *"
+                  value={formLote.precioDescuento}
+                  onChange={e => setFormLote({...formLote, precioDescuento: e.target.value})}
+                />
+              </div>
+              <input
+                type="date"
+                className="w-full p-3 border-0 bg-white rounded-xl shadow-sm font-medium text-gray-500 outline-none"
+                value={formLote.fechaExpiracion}
+                onChange={e => setFormLote({...formLote, fechaExpiracion: e.target.value})}
+              />
             </div>
           </div>
           <div className="flex justify-end">
-            <button onClick={handleAddItem} className="bg-[#1A103C] text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition-all">✓ Guardar Lote</button>
+            <button onClick={handleAddItem} className="bg-[#1A103C] text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition-all">
+              ✓ Guardar Lote
+            </button>
           </div>
         </div>
       )}
@@ -278,16 +373,27 @@ const nuevos = datos.map((p: LoteCrudoBackend) =>
           </thead>
           <tbody>
             {productosFiltrados.map(p => (
-              <tr key={p.id_lote} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors group">
+              <tr key={p.id_lote} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                 <td className="p-4 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-white border border-gray-100 flex items-center justify-center text-xl shadow-sm">{p.icono}</div>
-                  <span className="font-extrabold text-[#1A103C]">{p.descripcion}</span>
+                  <img
+                    src={p.imagen || IMAGEN_DEFAULT}
+                    alt={p.descripcion}
+                    className="w-12 h-12 rounded-xl object-cover border border-gray-100 shadow-sm"
+                    onError={(e) => { (e.target as HTMLImageElement).src = IMAGEN_DEFAULT; }}
+                  />
+                  <div>
+                    <span className="font-extrabold text-[#1A103C] block">{p.descripcion}</span>
+                    <span className="text-gray-400 text-xs">{p.fecha_expiracion?.split('T')[0]}</span>
+                  </div>
                 </td>
                 <td className="p-4"><span className={`px-3 py-1.5 rounded-full text-xs font-bold ${getColorCategoria(p.categoria)}`}>{p.categoria}</span></td>
                 <td className="p-4 font-extrabold text-[#1A103C]">{p.cantidad_en_stock} <span className="text-gray-400 font-medium text-sm">{p.unidad_medida}</span></td>
-                <td className="p-4 font-extrabold text-[#00E676]">${p.precio_descuento} <span className="text-gray-300 line-through text-xs">${p.precio_original}</span></td>
                 <td className="p-4">
-                  {p.estado === 'Disponible' 
+                  <span className="font-extrabold text-[#00E676]">${p.precio_descuento}</span>
+                  <span className="text-gray-300 line-through text-xs ml-2">${p.precio_original}</span>
+                </td>
+                <td className="p-4">
+                  {p.estado === 'Disponible'
                     ? <span className="bg-green-50 text-[#00E676] px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 w-max"><span className="w-2 h-2 rounded-full bg-[#00E676]"></span> Disponible</span>
                     : <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 w-max"><span className="w-2 h-2 rounded-full bg-gray-400"></span> Vendido</span>
                   }
@@ -295,13 +401,9 @@ const nuevos = datos.map((p: LoteCrudoBackend) =>
                 <td className="p-4">
                   <div className="flex justify-center gap-2">
                     {p.estado === 'Disponible' && (
-                      <button onClick={() => handleMarcarVendido(p.id_lote)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors" title="Marcar como vendido">
-                        ✅
-                      </button>
+                      <button onClick={() => handleMarcarVendido(p.id_lote)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors" title="Marcar como vendido">✅</button>
                     )}
-                    <button onClick={() => handleEliminar(p.id_lote)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors" title="Eliminar">
-                      🗑️
-                    </button>
+                    <button onClick={() => handleEliminar(p.id_lote)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors" title="Eliminar">🗑️</button>
                   </div>
                 </td>
               </tr>
@@ -335,7 +437,6 @@ const nuevos = datos.map((p: LoteCrudoBackend) =>
               if(m.nombre === 'Lácteos') color = 'bg-blue-400';
               if(m.nombre === 'Verduras') color = 'bg-[#00E676]';
               if(m.nombre === 'Preparada') color = 'bg-orange-500';
-
               return (
                 <div key={m.nombre}>
                   <div className="flex justify-between text-sm font-bold text-[#1A103C] mb-2"><span>{m.nombre}</span><span>{m.kg} kg</span></div>
@@ -359,96 +460,112 @@ const nuevos = datos.map((p: LoteCrudoBackend) =>
         </div>
         <div>
           <label className="text-xs text-gray-400 font-bold uppercase mb-2 block">Dirección Operativa</label>
-          <input className="w-full border-2 border-gray-100 p-4 rounded-xl bg-gray-50 font-bold text-[#1A103C] focus:border-[#00E676] outline-none" value={direccion} onChange={(e) => setDireccion(e.target.value)} />
+          <input className="w-full border-2 border-gray-100 p-4 rounded-xl bg-gray-50 font-bold text-[#1A103C] focus:border-[#00E676] outline-none" value={direccion} onChange={(e) => setDireccion(e.target.value)} placeholder="Ej. Zona Hotelera, Cancún" />
         </div>
         <div>
           <label className="text-xs text-gray-400 font-bold uppercase mb-2 block">Horario de Atención</label>
-          <input className="w-full border-2 border-gray-100 p-4 rounded-xl bg-gray-50 font-bold text-[#1A103C] focus:border-[#00E676] outline-none transition-colors" value={horario} onChange={(e) => setHorario(e.target.value)} />
+          <input className="w-full border-2 border-gray-100 p-4 rounded-xl bg-gray-50 font-bold text-[#1A103C] focus:border-[#00E676] outline-none" value={horario} onChange={(e) => setHorario(e.target.value)} placeholder="Ej. 08:00 AM - 10:00 PM" />
         </div>
-        <button 
-          onClick={() => setAlertaModal({ visible: true, mensaje: 'Datos de facturación actualizados.', tipo: 'exito' })}
-          className="mt-8 bg-[#1A103C] hover:bg-[#2c225a] text-white px-6 py-4 rounded-xl font-bold w-full transition-colors shadow-lg"
+        <button
+          onClick={() => setAlertaModal({ visible: true, mensaje: 'Datos guardados correctamente.', tipo: 'exito' })}
+          className="bg-[#1A103C] text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition-all"
         >
-          Guardar Preferencias
+          Guardar cambios
         </button>
       </div>
     </div>
   );
 
+  const navItems = [
+    { nombre: 'Inicio', icono: '🏠' },
+    { nombre: 'Inventario', icono: '📦' },
+    { nombre: 'Analíticas', icono: '📊' },
+    { nombre: 'Configuración', icono: '⚙️' },
+  ];
+
+  const tituloVista: Record<string, string> = {
+    Inicio: 'Panel de Inicio',
+    Inventario: 'Inventario',
+    Analíticas: 'Analíticas y Reportes',
+    Configuración: 'Configuración',
+  };
+
   return (
-    <div className="flex h-screen bg-[#FDFCF8] font-sans text-[#1A103C] overflow-hidden">
-      
-      <aside className="w-72 bg-[#1A103C] text-white flex flex-col justify-between shadow-2xl z-20 relative">
+    <div className="min-h-screen w-full flex bg-[#F5F6FA]">
+
+      {/* Sidebar */}
+      <aside className="w-64 bg-white border-r border-gray-100 flex flex-col justify-between py-6 px-4">
         <div>
-          <div className="p-8 flex items-center gap-3">
-            <div className="bg-[#00E676] p-2.5 rounded-xl"><span className="text-[#1A103C] font-black text-2xl leading-none">L</span></div>
-            <span className="text-3xl font-black text-white tracking-tight">Link-Zero</span>
+          <div className="flex items-center gap-2 px-2 mb-10">
+            <div className="bg-[#1A103C] text-[#00E676] w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-lg">L</div>
+            <span className="font-extrabold text-xl text-[#1A103C]">Link-Zero</span>
           </div>
-          <p className="px-8 text-xs text-gray-500 font-bold uppercase mb-4 tracking-widest">Navegación</p>
-          <nav className="space-y-2 px-4">
-             {['Inicio', 'Inventario', 'Analíticas', 'Configuración'].map((item) => (
-               <button 
-                  key={item} onClick={() => { setVistaActual(item); setBusqueda(''); }}
-                  className={`w-full text-left px-5 py-3.5 rounded-2xl font-bold transition-all flex items-center gap-4 ${vistaActual === item ? 'bg-[#2c225a] text-[#00E676] shadow-inner' : 'text-gray-400 hover:bg-[#2c225a] hover:text-white'}`}
-                >
-                 <span className="text-xl">
-                   {item === 'Inicio' && '🏠'}
-                   {item === 'Inventario' && '📦'}
-                   {item === 'Analíticas' && '📊'}
-                   {item === 'Configuración' && '⚙️'}
-                 </span>
-                 {item}
-               </button>
-             ))}
+
+          <p className="text-gray-300 text-xs font-bold uppercase tracking-wider px-3 mb-3">Navegación</p>
+          <nav className="flex flex-col gap-1">
+            {navItems.map(item => (
+              <button
+                key={item.nombre}
+                onClick={() => setVistaActual(item.nombre)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-colors text-left ${
+                  vistaActual === item.nombre
+                    ? 'bg-[#1A103C] text-white'
+                    : 'text-gray-400 hover:bg-gray-50 hover:text-[#1A103C]'
+                }`}
+              >
+                <span className="text-lg">{item.icono}</span>
+                {item.nombre}
+              </button>
+            ))}
           </nav>
+
+          <div className="mt-8 bg-green-50 rounded-2xl p-4">
+            <p className="text-xs font-bold text-gray-500 mb-1">Rescate histórico</p>
+            <p className="text-sm font-extrabold text-[#1A103C]">
+              Total: <span className="text-[#00E676]">{kgRescatados}</span> kg salvados.
+            </p>
+          </div>
         </div>
-        <div className="p-6">
-          <div className="bg-[#2c225a] p-5 rounded-2xl mb-4 border border-[#3b2d77] shadow-inner">
-            <p className="text-xs text-gray-400 mb-1 font-bold">Rescate histórico</p>
-            <p className="text-sm text-white font-bold leading-tight">Total: <span className="text-[#00E676]">{kgRescatados} kg</span> salvados.</p>
+
+        <div className="flex items-center gap-3 px-2 pt-6 border-t border-gray-100">
+          <div className="bg-[#1A103C] text-[#00E676] w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-sm">
+            {razonSocial?.charAt(0)?.toUpperCase() || '?'}
           </div>
-          <div className="flex items-center gap-3">
-            <div className="bg-[#00E676] w-12 h-12 rounded-full flex items-center justify-center text-[#1A103C] font-black text-lg">AB</div>
-            <div className="overflow-hidden">
-              <p className="text-sm font-bold text-white truncate w-32">{razonSocial}</p>
-              <p className="text-xs text-gray-400 font-medium truncate w-32">Propietario</p>
-            </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-extrabold text-[#1A103C] truncate">{razonSocial}</p>
+            <p className="text-xs text-gray-400 font-medium">Propietario</p>
           </div>
+          <button
+            onClick={onCerrarSesion}
+            title="Cerrar sesión"
+            className="text-gray-300 hover:text-red-500 transition-colors text-lg"
+          >
+            ⎋
+          </button>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col relative z-10 overflow-hidden">
-        <header className="flex justify-between items-center px-10 py-8 bg-[#FDFCF8]/80 backdrop-blur-md z-10 border-b border-gray-100">
+      {/* Contenido principal */}
+      <main className="flex-1 flex flex-col min-w-0">
+
+        {/* Header */}
+        <header className="bg-white border-b border-gray-100 px-8 py-5 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-extrabold text-[#1A103C]">
-              {vistaActual === 'Inicio' && 'Dashboard General'}
-              {vistaActual === 'Inventario' && 'Gestión de Inventario 📦'}
-              {vistaActual === 'Analíticas' && 'Métricas y Reportes 📊'}
-              {vistaActual === 'Configuración' && 'Ajustes del Sistema ⚙️'}
-            </h1>
+            <h1 className="text-2xl font-extrabold text-[#1A103C]">{tituloVista[vistaActual] || vistaActual}</h1>
+            <p className="text-sm text-gray-400">{razonSocial}</p>
           </div>
-          <div className="flex items-center gap-6">
-            <div className="relative">
-              <input 
-                type="text" 
-                placeholder="Busca pan, pizza, etc..." 
-                value={busqueda}
-                onChange={(e) => {
-                  setBusqueda(e.target.value);
-                  if(vistaActual !== 'Inventario') setVistaActual('Inventario'); 
-                }}
-                className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-full text-sm font-medium w-64 focus:outline-none focus:border-[#00E676] shadow-sm" 
-              />
-              <span className="absolute left-4 top-2.5 text-gray-400">🔍</span>
-            </div>
-            
-            <button className="relative p-2.5 bg-white border border-gray-200 rounded-full hover:bg-gray-50 shadow-sm transition-colors">
-              🔔 <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span>
-            </button>
-          </div>
+          {vistaActual === 'Inventario' && (
+            <input
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              placeholder="Buscar por nombre o categoría..."
+              className="w-72 px-4 py-2.5 rounded-xl bg-gray-50 border border-gray-100 text-sm font-medium outline-none focus:border-[#00E676] transition-colors"
+            />
+          )}
         </header>
 
-        <div className="p-10 overflow-y-auto h-full">
+        {/* Área de contenido según la vista */}
+        <div className="flex-1 p-8 overflow-y-auto">
           {vistaActual === 'Inicio' && renderInicio()}
           {vistaActual === 'Inventario' && renderInventario()}
           {vistaActual === 'Analíticas' && renderAnaliticas()}
@@ -456,17 +573,21 @@ const nuevos = datos.map((p: LoteCrudoBackend) =>
         </div>
       </main>
 
+      {/* Modal / toast de alerta */}
       {alertaModal.visible && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl overflow-hidden w-96 transform animate-in zoom-in-95 duration-200 border border-gray-100">
-            <div className={`px-6 py-4 flex justify-between items-center text-white ${alertaModal.tipo === 'error' ? 'bg-red-500' : 'bg-[#00E676] text-[#1A103C]'}`}>
-              <span className="font-extrabold text-lg">{alertaModal.tipo === 'error' ? '⚠️ Error' : '✅ ¡Hecho!'}</span>
-            </div>
-            <div className="p-8"><p className="text-[#1A103C] font-bold text-center text-lg">{alertaModal.mensaje}</p></div>
-            <div className="p-4 flex justify-center border-t border-gray-50">
-              <button onClick={() => setAlertaModal({ ...alertaModal, visible: false })} className="bg-[#1A103C] hover:scale-105 transition-transform px-8 py-3 rounded-xl text-white font-extrabold shadow-md w-full">Cerrar</button>
-            </div>
-          </div>
+        <div
+          className={`fixed bottom-6 right-6 px-6 py-4 rounded-2xl shadow-lg font-bold text-sm text-white flex items-center gap-3 animate-in slide-in-from-bottom-4 fade-in duration-300 z-50 ${
+            alertaModal.tipo === 'error' ? 'bg-red-500' : 'bg-[#1A103C]'
+          }`}
+        >
+          <span className="text-lg">{alertaModal.tipo === 'error' ? '⚠️' : '✅'}</span>
+          {alertaModal.mensaje}
+          <button
+            onClick={() => setAlertaModal({ visible: false, mensaje: '', tipo: '' })}
+            className="ml-2 opacity-60 hover:opacity-100 transition-opacity"
+          >
+            ✕
+          </button>
         </div>
       )}
     </div>

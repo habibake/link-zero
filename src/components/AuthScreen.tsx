@@ -3,13 +3,13 @@ import { useState } from 'react';
 const API_URL = "http://localhost:3001/api";
 
 interface AuthScreenProps {
-  onLoginSuccess: (role: 'customer' | 'business', nombre: string, razonSocial?: string, idCliente?: number) => void;
+  onLoginSuccess: (role: 'customer' | 'business', nombre: string, razonSocial?: string, idCliente?: number, correo?: string) => void;
 }
 
 type AuthMode = 'register' | 'login' | 'business';
 
 export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
-  const [authMode, setAuthMode] = useState<AuthMode>('register');
+  const [authMode, setAuthMode] = useState<AuthMode>('login');
 
   const [nombreCompleto, setNombreCompleto] = useState('');
   const [empresaNombre, setEmpresaNombre] = useState('');
@@ -23,48 +23,64 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const manejarEnvio = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    setCargando(true);
 
-    // Registro de empresa
-    if (authMode === 'business') {
-      setCargando(true);
-      try {
+    try {
+
+      // =====================
+      // LOGIN UNIFICADO
+      // =====================
+      if (authMode === 'login') {
+        const respuesta = await fetch(`${API_URL}/clientes/login-unificado`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ correo, contrasena: password })
+        });
+        const datos = await respuesta.json();
+
+        if (!respuesta.ok) {
+          setErrorMsg(datos.mensaje || 'Correo o contraseña incorrectos');
+          setCargando(false);
+          return;
+        }
+
+        // Detecta automáticamente si es cliente o empresa
+        if (datos.tipo === 'empresa') {
+          onLoginSuccess('business', datos.razon_social, datos.razon_social, undefined, datos.correo);
+        } else {
+          onLoginSuccess('customer', datos.nombre, undefined, datos.id_cliente, datos.correo);
+        }
+        return;
+      }
+
+      // =====================
+      // REGISTRO EMPRESA
+      // =====================
+      if (authMode === 'business') {
         const respuesta = await fetch(`${API_URL}/empresas`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             razon_social: razonSocial,
             direccion: ubicacion,
-            horario_de_atencion: '08:00 - 20:00'
+            horario_de_atencion: '08:00 - 20:00',
+            correo,
+            contrasena: password
           })
         });
-
         const datos = await respuesta.json();
-
         if (!respuesta.ok) {
-          setErrorMsg(datos.mensaje || 'No se pudo registrar la empresa. ¿Ya existe esa Razón Social?');
+          setErrorMsg(datos.mensaje || 'No se pudo registrar la empresa');
           setCargando(false);
           return;
         }
-
-        setCargando(false);
-        onLoginSuccess('business', empresaNombre || razonSocial, razonSocial);
-      } catch (error) {
-        console.log(error);
-        setErrorMsg('No se pudo conectar con el servidor.');
-        setCargando(false);
+        onLoginSuccess('business', empresaNombre || razonSocial, razonSocial, undefined, correo);
+        return;
       }
-      return;
-    }
 
-    // Login: no creamos nada nuevo, solo pasamos (no hay validación real todavía)
-    if (authMode === 'login') {
-      onLoginSuccess('customer', nombreCompleto || 'Usuario');
-      return;
-    }
-
-    // Registro de cliente: lo creamos de verdad en MySQL
-    setCargando(true);
-    try {
+      // =====================
+      // REGISTRO CLIENTE
+      // =====================
       const respuesta = await fetch(`${API_URL}/clientes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,17 +91,14 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           telefono: ''
         })
       });
-
       const datos = await respuesta.json();
-
       if (!respuesta.ok) {
-        setErrorMsg(datos.mensaje || 'No se pudo registrar el usuario.');
+        setErrorMsg(datos.mensaje || 'No se pudo registrar el usuario');
         setCargando(false);
         return;
       }
+      onLoginSuccess('customer', nombreCompleto, undefined, datos.id_cliente, correo);
 
-      setCargando(false);
-      onLoginSuccess('customer', nombreCompleto || 'Usuario', undefined, datos.id_cliente);
     } catch (error) {
       console.log(error);
       setErrorMsg('No se pudo conectar con el servidor.');
@@ -99,8 +112,8 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
         <div className="text-2xl font-bold">Link-Zero</div>
         <div className="flex flex-col items-center">
           <div className="bg-white p-4 pb-12 rotate-3 shadow-2xl mb-8 transform hover:rotate-0 transition-transform duration-500">
-             <img src="https://images.unsplash.com/photo-1509440159596-0249088772ff?q=80&w=400&auto=format&fit=crop" alt="Panadería" className="w-full h-48 object-cover mb-4"/>
-             <p className="text-[#1A103C] text-sm font-bold text-center">Panadería artesanal ✨</p>
+            <img src="https://images.unsplash.com/photo-1509440159596-0249088772ff?q=80&w=400&auto=format&fit=crop" alt="Panadería" className="w-full h-48 object-cover mb-4"/>
+            <p className="text-[#1A103C] text-sm font-bold text-center">Panadería artesanal ✨</p>
           </div>
         </div>
         <div>
@@ -112,15 +125,17 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       <div className="w-full lg:w-3/5 p-8 lg:p-20 flex flex-col justify-center overflow-y-auto">
         <div className="max-w-md mx-auto w-full">
           <div className="bg-gray-100 p-1 rounded-full flex mb-10 w-full justify-between">
-            <button onClick={() => setAuthMode('register')} className={`flex-1 py-2 rounded-full text-xs font-bold transition-all ${authMode === 'register' ? 'bg-[#403387] text-white shadow-lg' : 'text-gray-500'}`}>Usuario</button>
-            <button onClick={() => setAuthMode('business')} className={`flex-1 py-2 rounded-full text-xs font-bold ${authMode === 'business' ? 'bg-[#403387] text-white shadow-lg' : 'text-gray-500'}`}>Empresa</button>
-            <button onClick={() => setAuthMode('login')} className={`flex-1 py-2 rounded-full text-xs font-bold ${authMode === 'login' ? 'bg-[#403387] text-white shadow-lg' : 'text-gray-500'}`}>Ingresar</button>
+            <button onClick={() => { setAuthMode('register'); setErrorMsg(''); }} className={`flex-1 py-2 rounded-full text-xs font-bold transition-all ${authMode === 'register' ? 'bg-[#403387] text-white shadow-lg' : 'text-gray-500'}`}>Registro</button>
+            <button onClick={() => { setAuthMode('business'); setErrorMsg(''); }} className={`flex-1 py-2 rounded-full text-xs font-bold ${authMode === 'business' ? 'bg-[#403387] text-white shadow-lg' : 'text-gray-500'}`}>Empresa</button>
+            <button onClick={() => { setAuthMode('login'); setErrorMsg(''); }} className={`flex-1 py-2 rounded-full text-xs font-bold ${authMode === 'login' ? 'bg-[#403387] text-white shadow-lg' : 'text-gray-500'}`}>Ingresar</button>
           </div>
 
           <h1 className="text-4xl font-bold text-[#1A103C] mb-2">
             {authMode === 'login' ? 'Bienvenido de vuelta' : authMode === 'business' ? 'Suma tu negocio' : 'Crea tu cuenta'}
           </h1>
-          <p className="text-gray-500 mb-8">{authMode === 'business' ? 'Registra tu restaurante y empieza a rescatar.' : 'Empieza a rescatar comida hoy mismo.'}</p>
+          <p className="text-gray-500 mb-8">
+            {authMode === 'login' ? 'Ingresa con tu correo — detectamos si eres cliente o empresa.' : authMode === 'business' ? 'Registra tu restaurante y empieza a rescatar.' : 'Empieza a rescatar comida hoy mismo.'}
+          </p>
 
           {errorMsg && (
             <div className="bg-red-50 text-red-600 text-sm font-bold p-3 rounded-xl mb-4">
@@ -143,7 +158,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                   <input type="text" value={empresaNombre} onChange={e => setEmpresaNombre(e.target.value)} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 outline-none focus:border-[#403387]" placeholder="Ej. Bistró del Cerro" required />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Razón Social (ID)</label>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Razón Social (ID único)</label>
                   <input type="text" value={razonSocial} onChange={e => setRazonSocial(e.target.value)} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 outline-none focus:border-[#403387]" placeholder="Ej. BISTRO SA DE CV" required />
                 </div>
                 <div>
@@ -157,13 +172,14 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
               <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Correo electrónico</label>
               <input type="email" value={correo} onChange={e => setCorreo(e.target.value)} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 outline-none focus:border-[#403387]" placeholder="correo@ejemplo.com" required />
             </div>
+
             <div>
               <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Contraseña</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 outline-none focus:border-[#403387]" placeholder="Mínimo 8 caracteres" required />
             </div>
 
             <button type="submit" disabled={cargando} className="w-full bg-[#00E676] hover:bg-[#00C853] text-[#1A103C] font-bold py-4 rounded-2xl shadow-lg transition-all mt-4 disabled:opacity-50">
-              {cargando ? 'Guardando...' : authMode === 'login' ? 'Ingresar →' : 'Crear Cuenta →'}
+              {cargando ? 'Cargando...' : authMode === 'login' ? 'Ingresar →' : authMode === 'business' ? 'Registrar Empresa →' : 'Crear Cuenta →'}
             </button>
           </form>
         </div>
