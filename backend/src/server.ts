@@ -26,9 +26,9 @@ app.use("/api/recibos", reciboRoutes);
 
 // Ruta principal
 app.get("/", (req, res) => {
-    res.send("🚀 Link-Zero API funcionando");
+    res.send("Link-Zero API funcionando");
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+    console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });
