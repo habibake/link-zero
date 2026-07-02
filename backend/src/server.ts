@@ -1,21 +1,32 @@
-import express from 'express';
-import cors from 'cors';
-import lotesRoutes from './routes/lotes.routes';
-import reservasRoutes from './routes/reservas.routes';
+import express from "express";
+import cors from "cors";
+import empresaRoutes from "./routes/empresa.routes";
+
+import "./config/database";
+
+import lotesRoutes from "./routes/lotes.routes";
+import reservasRoutes from "./routes/reservas.routes";
+import clienteRoutes from "./routes/cliente.routes";
+import pagoRoutes from "./routes/pago.routes";
+import reciboRoutes from "./routes/recibo.routes";
 
 const app = express();
-const PORT = 3001; // distinto al 5173 de Vite, para no chocar
+const PORT = 3001;
 
-app.use(cors()); // permite que el frontend (otro puerto) le pegue a esta API
-app.use(express.json()); // permite leer JSON en el body de las peticiones POST
+app.use(cors());
+app.use(express.json());
 
 // Rutas
-app.use('/api/lotes', lotesRoutes);
-app.use('/api/reservas', reservasRoutes);
+app.use("/api/lotes", lotesRoutes);
+app.use("/api/reservas", reservasRoutes);
+app.use("/api/empresas", empresaRoutes);
+app.use("/api/clientes", clienteRoutes);
+app.use("/api/pagos", pagoRoutes);
+app.use("/api/recibos", reciboRoutes);
 
-// Ruta de salud, para confirmar rápido que el server está vivo
-app.get('/', (req, res) => {
-    res.send('Link-Zero API funcionando 🚀');
+// Ruta principal
+app.get("/", (req, res) => {
+    res.send("Link-Zero API funcionando");
 });
 
 app.listen(PORT, () => {

@@ -1,9 +1,20 @@
-import { Router } from 'express';
-import { registrarUsuario } from '../controllers/usuarioController';
+import { Router } from "express";
+
+import {
+    crearReserva,
+    listarReservas,
+    listarReservasPorUsuario
+} from "../controllers/reservas.controller";
 
 const router = Router();
 
-// Creamos la ruta tipo POST para recibir datos
-router.post('/registro', registrarUsuario);
+// Crear reserva
+router.post("/", crearReserva);
+
+// Listar todas las reservas
+router.get("/", listarReservas);
+
+// Historial por cliente
+router.get("/usuario/:usuarioId", listarReservasPorUsuario);
 
 export default router;

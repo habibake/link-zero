@@ -4,8 +4,8 @@ import MainHeader from './MainHeader';
 import MainHero from './MainHero';
 import MainCategorias from './MainCategorias';
 import MainDescubrimientos from './MainDescubrimientos';
-import QuienesSomos from './QuienesSomos'; // <-- Importado
-import Impacto from './Impacto'; // <-- Importado
+import QuienesSomos from './QuienesSomos';
+import Impacto from './Impacto';
 
 interface MainProps {
   lotes: LoteAlimento[];
@@ -15,6 +15,7 @@ interface MainProps {
   onCambiarBusqueda: (texto: string) => void;
   categoriaActiva: CategoriaLote | null;
   onSeleccionarCategoria: (categoria: CategoriaLote | null) => void;
+  onMiCuentaClick: () => void;
 }
 
 export default function Main({
@@ -25,32 +26,27 @@ export default function Main({
   onCambiarBusqueda,
   categoriaActiva,
   onSeleccionarCategoria,
+  onMiCuentaClick,
 }: MainProps) {
   return (
     <div className="min-h-screen bg-[#FDFCF8] font-sans text-[#1A103C]">
-      <MainHeader 
-        busqueda={busqueda} 
-        onCambiarBusqueda={onCambiarBusqueda} 
+      <MainHeader
+        busqueda={busqueda}
+        onCambiarBusqueda={onCambiarBusqueda}
+        onMiCuentaClick={onMiCuentaClick}
       />
-      
       <MainHero />
-      
-      <MainCategorias 
-        categoriaActiva={categoriaActiva} 
-        onSeleccionarCategoria={onSeleccionarCategoria} 
+      <MainCategorias
+        categoriaActiva={categoriaActiva}
+        onSeleccionarCategoria={onSeleccionarCategoria}
       />
-      
-      {/* Esta es la sección a la que bajará el botón de "Restaurantes" */}
-      <MainDescubrimientos 
-        lotes={lotes} 
-        onReservar={onReservar} 
-        onVerDetalle={onVerDetalle} 
+      <MainDescubrimientos
+        lotes={lotes}
+        onReservar={onReservar}
+        onVerDetalle={onVerDetalle}
       />
-
-      {/* Nuevas secciones conectadas a tu Header */}
       <QuienesSomos />
       <Impacto />
-
     </div>
   );
 }
