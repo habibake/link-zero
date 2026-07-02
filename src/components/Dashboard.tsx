@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { API_URL } from '../config/api';
 
-// Ruta base del backend.
-const API_URL = 'http://localhost:3001/api';
-
-// Imagen por defecto.
+// Imagen por defecto si la empresa no sube imagen.
 const IMAGEN_DEFAULT = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=400&auto=format&fit=crop';
 
-// Modelo interno del dashboard.
+// Clase que representa un lote dentro del dashboard de empresa.
 class LoteComida {
   id_lote: number;
   descripcion: string;
@@ -46,15 +44,25 @@ class LoteComida {
     this.imagen = imagen;
   }
 
-  // Si ya se vendió al menos una pieza, aparece como vendido en dashboard.
+  // Define el estado visual del lote.
   get estado() {
     if (this.cantidad_vendida > 0) return 'Vendido';
     if (this.cantidad_en_stock > 0) return 'Disponible';
     return 'Agotado';
   }
+
+  // Calcula ingresos reales generados por este lote.
+  get ingresosGenerados() {
+    return this.cantidad_vendida * this.precio_descuento;
+  }
+
+  // Calcula el total original de piezas publicadas.
+  get cantidadOriginalPublicada() {
+    return this.cantidad_en_stock + this.cantidad_vendida;
+  }
 }
 
-// Lote como llega del backend.
+// Estructura de lote como llega desde el backend.
 interface LoteCrudoBackend {
   id_lote: number;
   descripcion: string;
@@ -68,7 +76,7 @@ interface LoteCrudoBackend {
   imagen?: string | null;
 }
 
-// Empresa como llega del backend.
+// Estructura de empresa como llega desde el backend.
 interface EmpresaBackend {
   razon_social: string;
   nombre_empresa: string;
@@ -76,7 +84,7 @@ interface EmpresaBackend {
   horario_de_atencion?: string;
 }
 
-// Props del dashboard.
+// Props que recibe Dashboard desde App.tsx.
 interface DashboardProps {
   nombreEmpresa: string;
   razonSocialEmpresa: string;
@@ -90,43 +98,51 @@ export default function Dashboard({
   direccionEmpresa,
   onCerrarSesion
 }: DashboardProps) {
-  // Vista seleccionada.
-  const [vistaActual, setVistaActual] = useState('Inventario');
+  // Controla qué pantalla del dashboard se está viendo.
+  const [vistaActual, setVistaActual] = useState('Inicio');
 
-  // Filtros.
+  // Controla filtros y búsqueda del inventario.
   const [filtroTabla, setFiltroTabla] = useState('Todos');
   const [busqueda, setBusqueda] = useState('');
 
-  // Datos visibles de empresa.
+  // Guarda los datos visibles de la empresa.
   const [nombreVisible, setNombreVisible] = useState(nombreEmpresa || razonSocialEmpresa);
   const [direccionVisible, setDireccionVisible] = useState(direccionEmpresa || 'Ubicación no disponible');
   const [horarioVisible, setHorarioVisible] = useState('08:00 - 20:00');
+
+  // Guarda la razón social. Esta se usa como identificador interno en MySQL.
   const [razonSocial] = useState(razonSocialEmpresa || nombreEmpresa);
 
-  // Formulario de configuración.
+  // Controla si la pantalla de configuración está en modo edición.
   const [editandoConfig, setEditandoConfig] = useState(false);
+
+  // Formulario para editar datos visibles de la empresa.
   const [formConfig, setFormConfig] = useState({
     nombre_empresa: nombreEmpresa || razonSocialEmpresa,
     direccion: direccionEmpresa || '',
     horario_de_atencion: '08:00 - 20:00'
   });
 
-  // Productos.
+  // Guarda los productos reales de la empresa.
   const [productos, setProductos] = useState<LoteComida[]>([]);
 
-  // Modal nuevo lote.
+  // Controla el modal para agregar un nuevo lote.
   const [isAdding, setIsAdding] = useState(false);
 
-  // Imagen base64.
+  // Guarda la imagen convertida a base64 antes de mandarla a MySQL.
   const [imagenPreview, setImagenPreview] = useState('');
 
-  // Alertas.
-  const [alertaModal, setAlertaModal] = useState({ visible: false, mensaje: '', tipo: '' });
+  // Muestra alertas temporales de éxito o error.
+  const [alertaModal, setAlertaModal] = useState({
+    visible: false,
+    mensaje: '',
+    tipo: ''
+  });
 
-  // Input file.
+  // Sirve para limpiar el input de imagen cuando se guarda un lote.
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Formulario nuevo lote.
+  // Formulario para crear un nuevo lote.
   const [formLote, setFormLote] = useState({
     descripcion: '',
     categoria: 'Panadería',
@@ -136,24 +152,28 @@ export default function Dashboard({
     fechaExpiracion: ''
   });
 
-  // Carga empresa y productos.
+  // Carga empresa y productos al abrir el dashboard.
   useEffect(() => {
     cargarEmpresa();
     cargarProductos();
   }, []);
 
-  // Oculta alertas.
+  // Oculta las alertas después de 3 segundos.
   useEffect(() => {
     if (!alertaModal.visible) return;
 
     const timer = setTimeout(() => {
-      setAlertaModal({ visible: false, mensaje: '', tipo: '' });
+      setAlertaModal({
+        visible: false,
+        mensaje: '',
+        tipo: ''
+      });
     }, 3000);
 
     return () => clearTimeout(timer);
   }, [alertaModal.visible]);
 
-  // Carga datos reales de empresa.
+  // Trae los datos reales de la empresa desde MySQL.
   async function cargarEmpresa() {
     try {
       const respuesta = await fetch(`${API_URL}/empresas`);
@@ -183,7 +203,7 @@ export default function Dashboard({
     }
   }
 
-  // Carga productos de la empresa.
+  // Trae los lotes reales publicados por esta empresa.
   async function cargarProductos() {
     try {
       const respuesta = await fetch(`${API_URL}/lotes/empresa/${encodeURIComponent(razonSocial)}`);
@@ -212,7 +232,7 @@ export default function Dashboard({
     }
   }
 
-  // Convierte imagen a base64.
+  // Convierte una imagen seleccionada a base64 para guardarla en la base.
   const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
 
@@ -227,25 +247,43 @@ export default function Dashboard({
     reader.readAsDataURL(file);
   };
 
-  // Métricas.
-  const totalLotes = productos.filter((p) => p.cantidad_en_stock > 0).length;
+  // Métricas principales del negocio.
+  const lotesActivos = productos.filter((p) => p.cantidad_en_stock > 0).length;
+
+  const piezasVendidas = productos.reduce(
+    (acc, curr) => acc + curr.cantidad_vendida,
+    0
+  );
+
+  const piezasDisponibles = productos.reduce(
+    (acc, curr) => acc + curr.cantidad_en_stock,
+    0
+  );
 
   const kgRescatados = productos.reduce(
     (acc, curr) => acc + curr.cantidad_vendida * 1.5,
     0
   );
 
-  const ingresosProyectados = productos.reduce(
-    (acc, curr) => acc + curr.precio_descuento * curr.cantidad_vendida,
+  const ingresosGenerados = productos.reduce(
+    (acc, curr) => acc + curr.ingresosGenerados,
     0
   );
 
-  const totalVendidos = productos.reduce(
-    (acc, curr) => acc + curr.cantidad_vendida,
+  const totalPublicado = productos.reduce(
+    (acc, curr) => acc + curr.cantidadOriginalPublicada,
     0
   );
 
-  // Filtra productos.
+  const porcentajeVendido = totalPublicado > 0
+    ? Math.round((piezasVendidas / totalPublicado) * 100)
+    : 0;
+
+  const productoMasVendido = [...productos].sort(
+    (a, b) => b.cantidad_vendida - a.cantidad_vendida
+  )[0];
+
+  // Filtra los productos del inventario.
   const productosFiltrados = productos.filter((p) => {
     let cumpleFiltroBoton = true;
 
@@ -266,7 +304,7 @@ export default function Dashboard({
     return cumpleFiltroBoton && cumpleBusqueda;
   });
 
-  // Guarda configuración de empresa.
+  // Guarda cambios de configuración en MySQL.
   const handleGuardarConfiguracion = async () => {
     if (!formConfig.nombre_empresa || !formConfig.direccion || !formConfig.horario_de_atencion) {
       setAlertaModal({
@@ -280,7 +318,9 @@ export default function Dashboard({
     try {
       const respuesta = await fetch(`${API_URL}/empresas/${encodeURIComponent(razonSocial)}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(formConfig)
       });
 
@@ -326,7 +366,7 @@ export default function Dashboard({
     }
   };
 
-  // Agrega nuevo lote.
+  // Guarda un nuevo lote en MySQL.
   const handleAddItem = async () => {
     const {
       descripcion,
@@ -358,7 +398,9 @@ export default function Dashboard({
     try {
       const respuesta = await fetch(`${API_URL}/lotes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
           razon_social_empresa: razonSocial,
           descripcion,
@@ -416,13 +458,17 @@ export default function Dashboard({
     }
   };
 
-  // Marca lote como vendido manualmente.
+  // Marca un lote como vendido de forma manual.
   const handleMarcarVendido = async (id: number) => {
     try {
       await fetch(`${API_URL}/lotes/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: 'Vendido' })
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          estado: 'Vendido'
+        })
       });
 
       await cargarProductos();
@@ -437,10 +483,12 @@ export default function Dashboard({
     }
   };
 
-  // Elimina lote.
+  // Elimina un lote del inventario.
   const handleEliminar = async (id: number) => {
     try {
-      await fetch(`${API_URL}/lotes/${id}`, { method: 'DELETE' });
+      await fetch(`${API_URL}/lotes/${id}`, {
+        method: 'DELETE'
+      });
 
       await cargarProductos();
 
@@ -454,7 +502,7 @@ export default function Dashboard({
     }
   };
 
-  // Color por categoría.
+  // Define color por categoría.
   const getColorCategoria = (cat: string) => {
     switch (cat) {
       case 'Panadería': return 'bg-yellow-100 text-yellow-700';
@@ -465,7 +513,7 @@ export default function Dashboard({
     }
   };
 
-  // Color del estado del lote.
+  // Define color por estado.
   const getColorEstado = (estado: string) => {
     switch (estado) {
       case 'Vendido': return 'bg-purple-50 text-purple-600';
@@ -477,7 +525,7 @@ export default function Dashboard({
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA] text-[#1A103C] font-sans">
-      {/* Menú lateral. */}
+      {/* Menú lateral de empresa. */}
       <aside className="w-64 bg-white border-r border-gray-100 flex flex-col justify-between p-5">
         <div>
           <div className="flex items-center gap-3 mb-10">
@@ -494,7 +542,11 @@ export default function Dashboard({
               <button
                 key={vista}
                 onClick={() => setVistaActual(vista)}
-                className={`w-full text-left px-4 py-3 rounded-xl font-bold text-sm ${vistaActual === vista ? 'bg-[#1A103C] text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                className={`w-full text-left px-4 py-3 rounded-xl font-bold text-sm ${
+                  vistaActual === vista
+                    ? 'bg-[#1A103C] text-white'
+                    : 'text-gray-500 hover:bg-gray-50'
+                }`}
               >
                 {vista}
               </button>
@@ -509,7 +561,7 @@ export default function Dashboard({
           </div>
         </div>
 
-        {/* Datos inferiores de empresa. */}
+        {/* Datos rápidos de empresa y cierre de sesión. */}
         <div className="border-t border-gray-100 pt-5">
           <p className="font-extrabold text-sm truncate">{nombreVisible}</p>
           <p className="text-xs text-gray-400 truncate">{razonSocial}</p>
@@ -524,9 +576,9 @@ export default function Dashboard({
         </div>
       </aside>
 
-      {/* Contenido principal. */}
+      {/* Contenido principal del dashboard. */}
       <main className="flex-1 overflow-x-hidden">
-        {/* Encabezado. */}
+        {/* Encabezado superior. */}
         <header className="bg-white border-b border-gray-100 px-8 py-6 flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-black">{vistaActual}</h2>
@@ -543,14 +595,234 @@ export default function Dashboard({
         </header>
 
         <section className="p-8">
-          {/* Alertas. */}
+          {/* Alertas de acciones. */}
           {alertaModal.visible && (
-            <div className={`mb-6 p-4 rounded-2xl font-bold text-sm ${alertaModal.tipo === 'error' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+            <div className={`mb-6 p-4 rounded-2xl font-bold text-sm ${
+              alertaModal.tipo === 'error'
+                ? 'bg-red-50 text-red-600'
+                : 'bg-green-50 text-green-600'
+            }`}>
               {alertaModal.mensaje}
             </div>
           )}
 
-          {/* Configuración. */}
+          {/* Pantalla Inicio. */}
+          {vistaActual === 'Inicio' && (
+            <div className="space-y-8">
+              <div className="bg-[#1A103C] text-white rounded-3xl p-8 shadow-sm">
+                <p className="text-sm text-emerald-300 font-bold mb-2">Panel de empresa</p>
+                <h3 className="text-4xl font-black mb-3">Hola, {nombreVisible}</h3>
+                <p className="text-gray-300 max-w-2xl">
+                  Desde aquí puedes publicar lotes, revisar ventas, editar la información de tu negocio y medir el impacto de tus productos rescatados.
+                </p>
+
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <button
+                    onClick={() => setVistaActual('Inventario')}
+                    className="bg-[#00E676] text-[#1A103C] px-5 py-3 rounded-xl font-black text-sm"
+                  >
+                    Ver inventario
+                  </button>
+
+                  <button
+                    onClick={() => setIsAdding(true)}
+                    className="bg-white/10 text-white px-5 py-3 rounded-xl font-black text-sm hover:bg-white/20"
+                  >
+                    Publicar nuevo lote
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                  <p className="text-gray-400 text-sm font-bold">Lotes activos</p>
+                  <h3 className="text-4xl font-black mt-2">{lotesActivos}</h3>
+                </div>
+
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                  <p className="text-gray-400 text-sm font-bold">Piezas disponibles</p>
+                  <h3 className="text-4xl font-black mt-2">{piezasDisponibles}</h3>
+                </div>
+
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                  <p className="text-gray-400 text-sm font-bold">Piezas vendidas</p>
+                  <h3 className="text-4xl font-black mt-2">{piezasVendidas}</h3>
+                </div>
+
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                  <p className="text-gray-400 text-sm font-bold">Ingresos</p>
+                  <h3 className="text-4xl font-black mt-2">${ingresosGenerados}</h3>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                  <h3 className="text-xl font-black mb-4">Resumen rápido</h3>
+
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between text-sm font-bold mb-2">
+                        <span>Porcentaje vendido</span>
+                        <span>{porcentajeVendido}%</span>
+                      </div>
+                      <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden">
+                        <div
+                          className="bg-[#00E676] h-full rounded-full"
+                          style={{ width: `${porcentajeVendido}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-2xl p-4">
+                      <p className="text-xs text-gray-400 font-bold uppercase">Producto más vendido</p>
+                      <p className="font-black mt-1">
+                        {productoMasVendido && productoMasVendido.cantidad_vendida > 0
+                          ? `${productoMasVendido.descripcion} (${productoMasVendido.cantidad_vendida} vendidos)`
+                          : 'Todavía no hay ventas registradas'}
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-2xl p-4">
+                      <p className="text-xs text-gray-400 font-bold uppercase">Ubicación visible</p>
+                      <p className="font-black mt-1">{direccionVisible}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                  <h3 className="text-xl font-black mb-4">Últimos lotes publicados</h3>
+
+                  {productos.length === 0 ? (
+                    <p className="text-gray-400 font-bold text-sm">Todavía no has publicado lotes.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {productos.slice(0, 4).map((producto) => (
+                        <div key={producto.id_lote} className="flex items-center justify-between bg-gray-50 rounded-2xl p-3">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={producto.imagen}
+                              alt={producto.descripcion}
+                              className="w-12 h-12 rounded-xl object-cover"
+                            />
+
+                            <div>
+                              <p className="font-black text-sm">{producto.descripcion}</p>
+                              <p className="text-xs text-gray-400">
+                                Stock {producto.cantidad_en_stock} · Vendidos {producto.cantidad_vendida}
+                              </p>
+                            </div>
+                          </div>
+
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${getColorEstado(producto.estado)}`}>
+                            {producto.estado}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Pantalla Analíticas. */}
+          {vistaActual === 'Analíticas' && (
+            <div className="space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                  <p className="text-gray-400 text-sm font-bold">Piezas vendidas</p>
+                  <h3 className="text-4xl font-black mt-2">{piezasVendidas}</h3>
+                </div>
+
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                  <p className="text-gray-400 text-sm font-bold">Kg rescatados</p>
+                  <h3 className="text-4xl font-black mt-2">{kgRescatados}</h3>
+                </div>
+
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                  <p className="text-gray-400 text-sm font-bold">Ingresos generados</p>
+                  <h3 className="text-4xl font-black mt-2">${ingresosGenerados}</h3>
+                </div>
+
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                  <p className="text-gray-400 text-sm font-bold">Avance vendido</p>
+                  <h3 className="text-4xl font-black mt-2">{porcentajeVendido}%</h3>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
+                <h3 className="text-xl font-black mb-2">Ventas por producto</h3>
+                <p className="text-gray-400 text-sm mb-6">
+                  Estas barras se calculan con las reservas pagadas y los items vendidos.
+                </p>
+
+                {productos.length === 0 ? (
+                  <p className="text-gray-400 font-bold text-sm">No hay productos para analizar.</p>
+                ) : (
+                  <div className="space-y-5">
+                    {productos.map((producto) => {
+                      const totalBase = Math.max(producto.cantidadOriginalPublicada, 1);
+                      const porcentajeProducto = Math.round((producto.cantidad_vendida / totalBase) * 100);
+
+                      return (
+                        <div key={producto.id_lote}>
+                          <div className="flex justify-between text-sm font-bold mb-2">
+                            <span>{producto.descripcion}</span>
+                            <span>{producto.cantidad_vendida} vendidos · ${producto.ingresosGenerados}</span>
+                          </div>
+
+                          <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden">
+                            <div
+                              className="bg-[#403387] h-full rounded-full"
+                              style={{ width: `${porcentajeProducto}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
+                  <h3 className="text-xl font-black mb-4">Impacto ambiental</h3>
+
+                  <div className="space-y-4">
+                    <div className="bg-emerald-50 rounded-2xl p-5">
+                      <p className="text-xs text-gray-500 font-bold uppercase">Comida rescatada</p>
+                      <p className="text-3xl font-black text-emerald-600 mt-1">{kgRescatados} kg</p>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-2xl p-5">
+                      <p className="text-xs text-gray-500 font-bold uppercase">Piezas aprovechadas</p>
+                      <p className="text-3xl font-black mt-1">{piezasVendidas}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
+                  <h3 className="text-xl font-black mb-4">Resumen comercial</h3>
+
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 rounded-2xl p-5">
+                      <p className="text-xs text-gray-500 font-bold uppercase">Ingresos generados</p>
+                      <p className="text-3xl font-black mt-1">${ingresosGenerados}</p>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-2xl p-5">
+                      <p className="text-xs text-gray-500 font-bold uppercase">Lotes con ventas</p>
+                      <p className="text-3xl font-black mt-1">
+                        {productos.filter((p) => p.cantidad_vendida > 0).length}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Pantalla Configuración. */}
           {vistaActual === 'Configuración' && (
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 mb-8">
               <div className="flex items-center justify-between gap-4 mb-6">
@@ -644,33 +916,8 @@ export default function Dashboard({
             </div>
           )}
 
-          {/* Métricas. */}
-          {vistaActual !== 'Inventario' && vistaActual !== 'Configuración' && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                <p className="text-gray-400 text-sm font-bold">Lotes activos</p>
-                <h3 className="text-4xl font-black mt-2">{totalLotes}</h3>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                <p className="text-gray-400 text-sm font-bold">Piezas vendidas</p>
-                <h3 className="text-4xl font-black mt-2">{totalVendidos}</h3>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                <p className="text-gray-400 text-sm font-bold">Kg rescatados</p>
-                <h3 className="text-4xl font-black mt-2">{kgRescatados}</h3>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                <p className="text-gray-400 text-sm font-bold">Ingresos generados</p>
-                <h3 className="text-4xl font-black mt-2">${ingresosProyectados}</h3>
-              </div>
-            </div>
-          )}
-
-          {/* Inventario. */}
-          {vistaActual !== 'Configuración' && (
+          {/* Pantalla Inventario. */}
+          {vistaActual === 'Inventario' && (
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="p-6 border-b border-gray-100 flex items-center justify-between gap-4">
                 <div>
@@ -683,7 +930,11 @@ export default function Dashboard({
                     <button
                       key={filtro}
                       onClick={() => setFiltroTabla(filtro)}
-                      className={`px-4 py-2 rounded-xl text-sm font-bold border ${filtroTabla === filtro ? 'bg-[#1A103C] text-white border-[#1A103C]' : 'bg-white text-gray-500 border-gray-100'}`}
+                      className={`px-4 py-2 rounded-xl text-sm font-bold border ${
+                        filtroTabla === filtro
+                          ? 'bg-[#1A103C] text-white border-[#1A103C]'
+                          : 'bg-white text-gray-500 border-gray-100'
+                      }`}
                     >
                       {filtro}
                     </button>
@@ -792,7 +1043,7 @@ export default function Dashboard({
         </section>
       </main>
 
-      {/* Modal para crear lote. */}
+      {/* Modal para crear lote nuevo. */}
       {isAdding && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-6 z-50">
           <div className="bg-white rounded-3xl w-full max-w-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -809,7 +1060,9 @@ export default function Dashboard({
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs text-gray-400 font-bold uppercase mb-1">Nombre del producto</label>
+                <label className="block text-xs text-gray-400 font-bold uppercase mb-1">
+                  Nombre del producto
+                </label>
                 <input
                   value={formLote.descripcion}
                   onChange={(e) => setFormLote({ ...formLote, descripcion: e.target.value })}
@@ -819,7 +1072,9 @@ export default function Dashboard({
               </div>
 
               <div>
-                <label className="block text-xs text-gray-400 font-bold uppercase mb-1">Categoría</label>
+                <label className="block text-xs text-gray-400 font-bold uppercase mb-1">
+                  Categoría
+                </label>
                 <select
                   value={formLote.categoria}
                   onChange={(e) => setFormLote({ ...formLote, categoria: e.target.value })}
@@ -836,7 +1091,9 @@ export default function Dashboard({
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs text-gray-400 font-bold uppercase mb-1">Stock</label>
+                  <label className="block text-xs text-gray-400 font-bold uppercase mb-1">
+                    Stock
+                  </label>
                   <input
                     type="number"
                     value={formLote.cantidad}
@@ -846,7 +1103,9 @@ export default function Dashboard({
                 </div>
 
                 <div>
-                  <label className="block text-xs text-gray-400 font-bold uppercase mb-1">Precio original</label>
+                  <label className="block text-xs text-gray-400 font-bold uppercase mb-1">
+                    Precio original
+                  </label>
                   <input
                     type="number"
                     value={formLote.precioOriginal}
@@ -856,7 +1115,9 @@ export default function Dashboard({
                 </div>
 
                 <div>
-                  <label className="block text-xs text-gray-400 font-bold uppercase mb-1">Precio descuento</label>
+                  <label className="block text-xs text-gray-400 font-bold uppercase mb-1">
+                    Precio descuento
+                  </label>
                   <input
                     type="number"
                     value={formLote.precioDescuento}
@@ -867,7 +1128,9 @@ export default function Dashboard({
               </div>
 
               <div>
-                <label className="block text-xs text-gray-400 font-bold uppercase mb-1">Fecha de expiración</label>
+                <label className="block text-xs text-gray-400 font-bold uppercase mb-1">
+                  Fecha de expiración
+                </label>
                 <input
                   type="date"
                   value={formLote.fechaExpiracion}
@@ -877,7 +1140,9 @@ export default function Dashboard({
               </div>
 
               <div>
-                <label className="block text-xs text-gray-400 font-bold uppercase mb-1">Imagen</label>
+                <label className="block text-xs text-gray-400 font-bold uppercase mb-1">
+                  Imagen
+                </label>
                 <input
                   ref={fileInputRef}
                   type="file"

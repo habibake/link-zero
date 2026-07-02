@@ -1,7 +1,7 @@
 import { useState } from 'react';
+import { API_URL } from '../config/api';
 
 // Ruta base del backend.
-const API_URL = 'http://localhost:3001/api';
 
 interface AuthScreenProps {
   onLoginSuccess: (

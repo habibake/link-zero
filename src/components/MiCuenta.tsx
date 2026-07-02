@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_URL } from '../config/api';
 
 // Ruta base del backend.
-const API_URL = 'http://localhost:3001/api';
 
 // Estructura de cada reserva como viene desde el backend.
 interface Reserva {

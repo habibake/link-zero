@@ -9,9 +9,9 @@ import MiCuenta from './components/MiCuenta';
 import { LoteAlimento } from './models/LoteAlimento';
 import type { CategoriaLote } from './models/LoteAlimento';
 import { Usuario } from './models/Usuario';
+import { API_URL } from './config/api';
 
 // Ruta base del backend.
-const API_URL = 'http://localhost:3001/api';
 
 // Representa el lote como llega desde MySQL.
 interface LoteCrudo {
