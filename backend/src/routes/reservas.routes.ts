@@ -1,9 +1,9 @@
 import { Router } from "express";
 
 import {
-    crearReserva,
-    listarReservas,
-    listarReservasPorUsuario
+  crearReserva,
+  listarReservas,
+  listarReservasPorUsuario
 } from "../controllers/reservas.controller";
 
 const router = Router();
